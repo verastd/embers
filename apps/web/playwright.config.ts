@@ -27,7 +27,7 @@ export default defineConfig({
     {
       command: `pnpm exec next dev --port ${PORT}`,
       env: {
-        LEDGER_URL: `http://127.0.0.1:${STUB}`,
+        LEDGER_URL: `http://127.0.0.1:${STUB}/v1`,
         EMBERS_DIST_DIR: '.next-e2e',
         EMBERS_SESSION_SECRET: E2E_SESSION_SECRET,
         EMBERS_PUBLIC_ORIGIN: `http://localhost:${PORT}`,

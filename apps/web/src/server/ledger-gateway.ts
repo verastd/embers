@@ -5,10 +5,12 @@
  * or credentials.
  *
  * Ported from FORGE's forge-api gateway (same allowlist, limits and
- * deadlines). What goes up: `Accept: application/json`, the POST body as
- * JSON, and `Authorization: Bearer <LEDGER_API_KEY>` when that is set (the
- * ledger itself has no auth; the key is for an authenticating tunnel or
- * proxy in front of it). No header of the caller's is ever forwarded.
+ * deadlines). LEDGER_URL is the base the ledger path is appended to: the
+ * forge-api gateway (`https://…/api/ledger`, TD's access decision) or a
+ * ledger directly (`http://127.0.0.1:3000/v1`). What goes up: `Accept:
+ * application/json`, the POST body as JSON, and the `Authorization` header
+ * the route handler supplies (a short-lived forge-api assertion). No header
+ * of the caller's is ever forwarded.
  *
  * Every answer carries `x-request-id`. Errors the gateway produces use the
  * PRD §10 envelope: `{ error: { code, message, request_id, retryable } }`.
@@ -149,7 +151,8 @@ export interface ForwardResult {
 
 export interface ForwardDeps {
   baseUrl: string | null;
-  apiKey?: string;
+  /** The whole Authorization header value, e.g. `Bearer <jwt>`. */
+  authorization?: string;
   fetch: typeof fetch;
 }
 
@@ -163,10 +166,10 @@ export async function forward(input: ForwardInput, deps: ForwardDeps): Promise<F
   }
   if (!deps.baseUrl) return gatewayError('ledger_not_configured');
 
-  const url = `${deps.baseUrl}/v1/${input.segments.map(encodeURIComponent).join('/')}${input.query ? `?${input.query}` : ''}`;
+  const url = `${deps.baseUrl}/${input.segments.map(encodeURIComponent).join('/')}${input.query ? `?${input.query}` : ''}`;
   const headers: Record<string, string> = { accept: 'application/json' };
   if (input.method === 'POST') headers['content-type'] = 'application/json';
-  if (deps.apiKey) headers.authorization = `Bearer ${deps.apiKey}`;
+  if (deps.authorization) headers.authorization = deps.authorization;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), LIMITS.totalTimeoutMs);

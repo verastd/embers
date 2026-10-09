@@ -39,12 +39,12 @@ describe('ledgerBaseUrl', () => {
 describe('forward', () => {
   const base = { baseUrl: 'http://ledger:3000' };
 
-  it('forwards an allowlisted GET with only Accept (plus the bearer key when set)', async () => {
+  it('forwards an allowlisted GET to <base>/<path> with only Accept and the given Authorization', async () => {
     const fetch = vi.fn(async () => ok({ data: [] }));
-    const res = await forward({ method: 'GET', segments: ['sales'], query: 'limit=2' }, { ...base, apiKey: 'k', fetch });
+    const res = await forward({ method: 'GET', segments: ['sales'], query: 'limit=2' }, { ...base, authorization: 'Bearer k', fetch });
     expect(res).toEqual({ status: 200, body: '{"data":[]}' });
     const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe('http://ledger:3000/v1/sales?limit=2');
+    expect(url).toBe('http://ledger:3000/sales?limit=2');
     expect(init.headers).toEqual({ accept: 'application/json', authorization: 'Bearer k' });
     expect(init.redirect).toBe('manual');
   });
