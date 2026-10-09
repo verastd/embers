@@ -321,7 +321,19 @@ interface Ordered<S extends string> extends OffsetParams {
   order?: SortDir;
 }
 
-export const PROPERTY_SORTS = ['mint_price_upx', 'last_sale_upx', 'last_sale_at', 'minted_at', 'sales', 'address'] as const;
+export const PROPERTY_SORTS = [
+  'mint_price_upx',
+  'last_sale_upx',
+  'last_sale_at',
+  'minted_at',
+  'sales',
+  'address',
+  'ask_upx',
+  'ask_fiat',
+  'ask_to_mint',
+  'listed_at',
+  'owner_since',
+] as const;
 export interface PropertyListParams extends ChainParam, Ordered<(typeof PROPERTY_SORTS)[number]> {
   city?: string;
   neighborhood?: string;
@@ -335,6 +347,18 @@ export interface PropertyListParams extends ChainParam, Ordered<(typeof PROPERTY
   traded?: boolean;
   /** Case-insensitive substring. */
   address?: string;
+  /** Current owner: EOS account or Upland username, case-insensitive. */
+  owner?: string;
+  /** Open listings only (true) or unlisted only (false). */
+  listed?: boolean;
+  /** The book an open listing is in; implies listed. */
+  currency?: 'upx' | 'fiat';
+  /** Bounds on the open ask, in the listing's own currency (UPX or USD). */
+  min_ask?: number;
+  max_ask?: number;
+  /** Bounds on UPX ask / mint price (1.5 = 50 % markup); implies a UPX listing. */
+  min_markup?: number;
+  max_markup?: number;
 }
 
 export interface PropertyHistoryParams extends ChainParam, OffsetParams {

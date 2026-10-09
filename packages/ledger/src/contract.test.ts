@@ -219,3 +219,32 @@ describe('client methods', () => {
     });
   }
 });
+
+describe('Property (upland-ledger migration 0013)', () => {
+  const base = (readExample('GET_properties.json') as { data: Record<string, unknown>[] }).data[0];
+
+  it('accepts the owner and open-listing fields, and their absence on an older ledger', () => {
+    const listed = {
+      ...base,
+      owner_account: 'mequ13noaq12',
+      owner_username: 'genndus',
+      owner_since: '2026-09-01T10:00:00.000Z',
+      owner_seen_at: '2026-10-01T08:00:00.000Z',
+      owner_source: 'listing_created',
+      listed: true,
+      ask_upx: 15000,
+      ask_fiat: null,
+      ask_currency: 'upx',
+      ask_to_mint: 1.5,
+      listed_at: '2026-10-01T08:00:00.000Z',
+    };
+    expect(S.PropertySchema.parse(listed)).toEqual(listed);
+    const unlisted = { ...listed, owner_account: null, owner_username: null, owner_since: null, owner_seen_at: null, owner_source: null, listed: false, ask_upx: null, ask_currency: null, ask_to_mint: null, listed_at: null };
+    expect(S.PropertySchema.parse(unlisted)).toEqual(unlisted);
+    expect(S.PropertySchema.parse(base)).toEqual(base);
+  });
+
+  it('rejects an unknown ask currency', () => {
+    expect(S.PropertySchema.safeParse({ ...base, listed: true, ask_currency: 'eth' }).success).toBe(false);
+  });
+});

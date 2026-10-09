@@ -460,6 +460,25 @@ export const PropertySchema = z.object({
   observations: num,
   /** floor(log2(mint_price_upx)); null when there is no mint price. */
   mint_band: num.nullable(),
+  // Current owner and open listing (upland-ledger migration 0013). Optional
+  // because a ledger without that migration omits them entirely; null when
+  // the ledger has the columns but no value for this property.
+  /** Newest account the chain shows holding the property. */
+  owner_account: str.nullable().optional(),
+  owner_username: str.nullable().optional(),
+  /** When that account acquired it (mint, sale, accepted offer); null when only a listing names it. */
+  owner_since: IsoInstant.nullable().optional(),
+  owner_seen_at: IsoInstant.nullable().optional(),
+  /** The event that named the owner: property_minted | property_sale | listing_created | offer_accepted. */
+  owner_source: str.nullable().optional(),
+  listed: z.boolean().optional(),
+  ask_upx: num.nullable().optional(),
+  /** USD. */
+  ask_fiat: num.nullable().optional(),
+  ask_currency: z.enum(['upx', 'fiat']).nullable().optional(),
+  /** UPX ask over mint price (1.5 = 50 % markup); null for FIAT asks. */
+  ask_to_mint: num.nullable().optional(),
+  listed_at: IsoInstant.nullable().optional(),
 });
 export type Property = z.infer<typeof PropertySchema>;
 export const PropertyPageSchema = offsetPage(PropertySchema);

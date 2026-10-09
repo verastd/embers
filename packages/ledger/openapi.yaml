@@ -666,7 +666,7 @@ paths:
       tags: [entities]
       operationId: listProperties
       summary: Properties (derived dimension)
-      description: Properties known from chain mint/sale events (~398 K that have traded or minted inside the chain window, not all ~4.9 M). Tiebreak `property_id`. Unknown parameters are ignored.
+      description: The property dimension. Before upland-ledger migration 0013, properties known from chain mint/sale events only (~398 K); from 0013, the union with the Developers API crawl (~4.9 M once it has run), plus current owner and open listing. Tiebreak `property_id`; on ask, markup, listed_at, owner_since, mint and last-sale sorts, absent values sort last in both directions. Unknown parameters are ignored, so a pre-0013 ledger silently ignores owner/listed/currency/ask/markup (detect it by the missing `listed` field).
       x-example: examples/GET_properties.json
       parameters:
         - { $ref: '#/components/parameters/entityChain' }
@@ -680,7 +680,14 @@ paths:
         - { name: min_sales, in: query, schema: { type: integer, minimum: 0 } }
         - { $ref: '#/components/parameters/traded' }
         - { name: address, in: query, description: Case-insensitive substring., schema: { type: string, minLength: 1, maxLength: 120 } }
-        - { name: sort, in: query, schema: { type: string, enum: [mint_price_upx, last_sale_upx, last_sale_at, minted_at, sales, address], default: mint_price_upx } }
+        - { name: owner, in: query, description: 'Current owner: EOS account or Upland username, case-insensitive (0013).', schema: { type: string, minLength: 1, maxLength: 64 } }
+        - { name: listed, in: query, description: 'Open listings only, or unlisted only (0013).', schema: { type: boolean } }
+        - { name: currency, in: query, description: 'Book of the open listing; implies listed (0013).', schema: { type: string, enum: [upx, fiat] } }
+        - { name: min_ask, in: query, description: 'Open ask in its own currency (UPX or USD) (0013).', schema: { type: number } }
+        - { name: max_ask, in: query, schema: { type: number } }
+        - { name: min_markup, in: query, description: 'UPX ask / mint price; implies a UPX listing (0013).', schema: { type: number } }
+        - { name: max_markup, in: query, schema: { type: number } }
+        - { name: sort, in: query, schema: { type: string, enum: [mint_price_upx, last_sale_upx, last_sale_at, minted_at, sales, address, ask_upx, ask_fiat, ask_to_mint, listed_at, owner_since], default: mint_price_upx } }
         - { $ref: '#/components/parameters/order' }
         - { $ref: '#/components/parameters/entityLimit' }
         - { $ref: '#/components/parameters/offset' }
@@ -1604,6 +1611,18 @@ components:
         last_sale_at: { type: [string, 'null'], format: date-time }
         observations: { type: number }
         mint_band: { type: [number, 'null'], description: 'floor(log2(mint_price_upx)); null without a mint price.' }
+        # From upland-ledger migration 0013; absent on older ledgers.
+        owner_account: { type: [string, 'null'], description: Newest account the chain shows holding the property. }
+        owner_username: { type: [string, 'null'] }
+        owner_since: { type: [string, 'null'], format: date-time, description: 'Acquisition (mint, sale, accepted offer); null when only a listing names the owner.' }
+        owner_seen_at: { type: [string, 'null'], format: date-time }
+        owner_source: { type: [string, 'null'], description: 'property_minted | property_sale | listing_created | offer_accepted' }
+        listed: { type: boolean }
+        ask_upx: { type: [number, 'null'] }
+        ask_fiat: { type: [number, 'null'], description: USD. }
+        ask_currency: { type: [string, 'null'], enum: [upx, fiat, null] }
+        ask_to_mint: { type: [number, 'null'], description: UPX ask / mint price; null for FIAT asks. }
+        listed_at: { type: [string, 'null'], format: date-time }
     PropertyPage:
       allOf:
         - { $ref: '#/components/schemas/OffsetPageMeta' }
