@@ -1,13 +1,15 @@
 /**
  * `/bff/ledger/*`: the browser's only way to the Upland Ledger. Validation,
  * limits and forwarding live in `server/ledger-gateway.ts`; this handler
- * adds the request id, the same-origin check for POST (NFR-4 CSRF) and
- * no-store caching. Public ledger reads need no sign-in (PRD 4.2: public
- * analytics are anonymous).
+ * adds the request id, the same-origin check for POST (NFR-4 CSRF), the
+ * upstream assertion (`server/ledger-auth.ts`) and no-store caching. Public
+ * ledger reads need no sign-in (PRD 4.2: public analytics are anonymous).
  */
 import { randomUUID } from 'node:crypto';
 import type { NextRequest } from 'next/server';
 
+import { getSession } from '@/server/auth/session';
+import { ledgerAuthorization } from '@/server/ledger-auth';
 import { errorBody, forward, gatewayError, isGatewayError, ledgerBaseUrl } from '@/server/ledger-gateway';
 import type { Method } from '@/server/ledger-gateway';
 
@@ -31,6 +33,12 @@ async function handle(req: NextRequest, method: Method, params: Promise<{ path: 
       return respond(403, JSON.stringify({ error: { code: 'forbidden_origin', message: 'Cross-site requests are refused.', request_id: requestId, retryable: false } }), requestId);
     }
   }
+  const session = await getSession();
+  const auth = await ledgerAuthorization(session ? { sub: session.sub, login: session.login } : null);
+  if (!auth.ok) {
+    const err = gatewayError('ledger_not_configured');
+    return respond(err.status, errorBody(err, requestId), requestId);
+  }
   const result = await forward(
     {
       method,
@@ -39,7 +47,7 @@ async function handle(req: NextRequest, method: Method, params: Promise<{ path: 
       body: method === 'POST' ? await req.text() : undefined,
       contentType: req.headers.get('content-type'),
     },
-    { baseUrl: ledgerBaseUrl(process.env.LEDGER_URL), apiKey: process.env.LEDGER_API_KEY || undefined, fetch },
+    { baseUrl: ledgerBaseUrl(process.env.LEDGER_URL), authorization: auth.authorization, fetch },
   );
   if (isGatewayError(result)) return respond(result.status, errorBody(result, requestId), requestId);
   return respond(result.status, result.body, requestId);

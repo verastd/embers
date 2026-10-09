@@ -20,8 +20,11 @@ The packages ship TypeScript source; nothing needs building before `pnpm dev`.
 ## Data
 
 The Upland Ledger is Embers' backend. The web server reaches it at
-`LEDGER_URL` (server-only; see `.env.example`), optionally through an
-authenticating proxy (`LEDGER_API_KEY`). The browser only ever calls
+`LEDGER_URL` (server-only; see `.env.example`). In production that is
+FORGE's forge-api gateway, which needs a short-lived assertion signed with
+`FORGE_API_ASSERTION_SECRET`: a signed-in visitor's reads go out as that
+visitor, signed-out reads as `EMBERS_LEDGER_SUB`/`EMBERS_LEDGER_LOGIN`.
+The ledger itself has no public route. The browser only ever calls
 same-origin `/bff/ledger/*`.
 
 ## Sign-in

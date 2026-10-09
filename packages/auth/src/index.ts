@@ -6,6 +6,8 @@
  * on a Node built-in. `eslint.config.mjs` enforces that; the Node-based test
  * run cannot.
  */
+export { mintApiAssertion } from './assertion.js';
+export type { ApiIdentity, AssertionOptions } from './assertion.js';
 export { constantTimeEqual } from './compare.js';
 export { COOKIE, cookieOptions, SESSION_TTL_SECONDS, TRANSACTION_TTL_SECONDS } from './cookies.js';
 export type { CookieKind, CookieOptions } from './cookies.js';
