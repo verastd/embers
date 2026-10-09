@@ -1,0 +1,27 @@
+{
+  "name": "@embers/eslint-plugin",
+  "version": "0.0.0",
+  "private": true,
+  "description": "PRD §5.9 / §6.5 enforcement: AsyncButton for async clicks, no raw fetch in components, no token literals in feature code.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": { ".": "./src/index.js" },
+  "scripts": {
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src"
+  },
+  "peerDependencies": {
+    "eslint": "^9"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9",
+    "@vitest/coverage-v8": "^2.1",
+    "eslint": "^9",
+    "typescript-eslint": "^8",
+    "vitest": "^2.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

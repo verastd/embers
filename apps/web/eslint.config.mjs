@@ -1,5 +1,6 @@
 // @ts-check
 import js from '@eslint/js';
+import embers from '@embers/eslint-plugin';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
@@ -30,4 +31,6 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-imports': 'error',
     },
   },
+  // PRD 5.9 + 6.5: AsyncButton for async clicks, no raw fetch in components, tokens only.
+  { files: ['src/**/*.{ts,tsx}'], ...embers.configs.feature },
 );
