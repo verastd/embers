@@ -15,6 +15,19 @@ test('signed out: the top bar offers Sign in with GitHub, returning to this page
   await expect(link).toHaveAttribute('href', '/auth/signin?next=%2Fproperties%2Fsearch');
 });
 
+test('signing in from a filtered search returns to the same filters (Codex review on #3)', async ({ page }) => {
+  let started: URL | null = null;
+  // Stop at our own /auth/signin: the test checks the return URL, and never goes on to GitHub.
+  await page.route('**/auth/signin?*', (route) => {
+    started = new URL(route.request().url());
+    return route.fulfill({ status: 200, contentType: 'text/html', body: 'stopped before GitHub' });
+  });
+  await page.goto('/properties/search?search=1&address=SEARSDALE');
+  await page.getByRole('link', { name: 'Sign in with GitHub' }).click();
+  await expect(page.getByText('stopped before GitHub')).toBeVisible();
+  expect((started as unknown as URL).searchParams.get('next')).toBe('/properties/search?search=1&address=SEARSDALE');
+});
+
 test('/auth/signin redirects to GitHub with state, PKCE S256 and our callback, and sets the attempt cookie', async ({ request }) => {
   // Redirects off: the test checks where it would go, and never contacts github.com.
   const res = await request.get('/auth/signin?next=/properties/search', { maxRedirects: 0 });

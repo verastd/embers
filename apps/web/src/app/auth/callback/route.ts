@@ -51,14 +51,16 @@ export async function GET(request: NextRequest): Promise<Response> {
       redirectUri: `${config.origin}/auth/callback`,
       codeVerifier: tx.verifier,
     });
-    const user = await fetchGitHubUser(accessToken);
-    await setSessionCookie({ sub: String(user.id), login: user.login, name: user.name, avatarUrl: user.avatarUrl, demo: false });
-    // Identity only: the token has no further use, so it is revoked after the redirect.
+    // Identity only: the token has no use beyond reading the profile, so its
+    // revocation is scheduled the moment it exists, before anything that can
+    // fail, and runs after the response whichever way this attempt ends.
     after(async () => {
       await revokeGitHubToken({ clientId: config.clientId, clientSecret: config.clientSecret, accessToken }).catch((e: unknown) => {
         console.warn(`token revoke failed: ${e instanceof AuthError ? e.code : 'unexpected'}`);
       });
     });
+    const user = await fetchGitHubUser(accessToken);
+    await setSessionCookie({ sub: String(user.id), login: user.login, name: user.name, avatarUrl: user.avatarUrl, demo: false });
   } catch (error) {
     // The code only: messages could carry the code or a token.
     console.warn(`sign-in callback failed: ${error instanceof AuthError ? error.code : 'unexpected'}`);

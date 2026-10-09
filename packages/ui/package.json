@@ -17,7 +17,7 @@
   ],
   "sideEffects": [
     "*.css",
-    "./dist/fonts.js"
+    "./src/fonts.ts"
   ],
   "engines": {
     "node": ">=22"
