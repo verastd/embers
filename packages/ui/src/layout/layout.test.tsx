@@ -180,7 +180,7 @@ describe('TopBar', () => {
     const clear = vi.spyOn(globalThis, 'clearInterval');
     const { container, unmount } = render(<TopBar />);
     expect(container.textContent).toContain('12:00 UTC');
-    expect(container.textContent).toContain('04:00 LA');
+    expect(container.textContent).toContain('04:00 PT');
     act(() => vi.advanceTimersByTime(60_000));
     expect(container.textContent).toContain('12:01 UTC');
     unmount();
@@ -191,7 +191,7 @@ describe('TopBar', () => {
   it('shows a fixed time when `now` is controlled', () => {
     const { container } = render(<TopBar now={Date.UTC(2026, 6, 1, 8, 5)} />);
     expect(container.textContent).toContain('08:05 UTC');
-    expect(container.textContent).toContain('01:05 LA');
+    expect(container.textContent).toContain('01:05 PT');
     act(() => vi.advanceTimersByTime(120_000));
     expect(container.textContent).toContain('08:05 UTC');
   });
@@ -214,6 +214,19 @@ describe('TopBar', () => {
     expect(options[1]?.getAttribute('href')).toBe('#u/tdlabs');
     fireEvent.click(options[0] as HTMLElement);
     expect(onPick).toHaveBeenCalledWith(recent[0]);
+  });
+
+  it('offers Clear history in the Recent header only when handled', () => {
+    const onClearRecent = vi.fn();
+    const recent: TopBarSearchRow[] = [{ label: 'kingbo', href: '/users/kingbo' }];
+    const { rerender } = render(<TopBar recent={recent} />);
+    fireEvent.focus(input());
+    expect(screen.queryByRole('button', { name: 'Clear history' })).toBeNull();
+    rerender(<TopBar recent={recent} onClearRecent={onClearRecent} />);
+    const clear = screen.getByRole('button', { name: 'Clear history' });
+    fireEvent.mouseDown(clear);
+    fireEvent.click(clear);
+    expect(onClearRecent).toHaveBeenCalledTimes(1);
   });
 
   it('asks for more characters below the 3-char minimum', () => {

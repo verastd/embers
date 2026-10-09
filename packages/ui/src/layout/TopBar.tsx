@@ -74,6 +74,10 @@ export interface TopBarProps {
   searchStatus?: TopBarSearchStatus;
   results?: TopBarSearchRow[];
   recent?: TopBarSearchRow[];
+  /** The search box's placeholder: name only the kinds the search returns. */
+  searchPlaceholder?: string;
+  /** PRD F-101 "Clear history": shown in the Recent header when given. */
+  onClearRecent?: () => void;
   onPick?: (row: TopBarSearchRow) => void;
   onSearchRetry?: () => void;
   theme?: TopBarTheme;
@@ -127,6 +131,8 @@ export function TopBar({
   searchStatus = "idle",
   results = [],
   recent = [],
+  onClearRecent,
+  searchPlaceholder = "Search properties, users, collections…",
   onPick,
   onSearchRetry,
   theme = "system",
@@ -311,7 +317,7 @@ export function TopBar({
             aria-autocomplete="list"
             aria-activedescendant={cur >= 0 ? optId(cur) : undefined}
             aria-label="Search properties, users, collections"
-            placeholder="Search properties, users, collections…"
+            placeholder={searchPlaceholder}
             value={query}
             onChange={(e) => {
               setActive(-1);
@@ -373,7 +379,17 @@ export function TopBar({
             ) : query.length === 0 ? (
               <>
                 <Row muted small>
-                  Recent
+                  <span style={{ flex: 1 }}>Recent</span>
+                  {onClearRecent && (
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={onClearRecent}
+                      style={{ all: "unset", cursor: "pointer", color: "var(--text-link)", font: "var(--type-caption)", textTransform: "none", letterSpacing: 0 }}
+                    >
+                      Clear history
+                    </button>
+                  )}
                 </Row>
                 {recent.map((r, i) => (
                   <Row
@@ -459,7 +475,7 @@ export function TopBar({
           >
             {fmt("America/Los_Angeles")}
           </span>{" "}
-          LA
+          PT
         </span>
       </span>
       <Segment

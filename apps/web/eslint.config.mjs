@@ -24,6 +24,7 @@ export default tseslint.config(
         process: 'readonly',
         AbortController: 'readonly',
         HTMLElement: 'readonly',
+        URL: 'readonly',
       },
     },
     rules: {
