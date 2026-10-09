@@ -1,19 +1,16 @@
 {
-  "name": "@embers/ledger",
+  "name": "@embers/auth",
   "version": "0.0.0",
   "private": true,
-  "description": "OpenAPI contract, zod schemas and typed client for the Upland Ledger REST API behind /bff/ledger. Standalone: zod is the only dependency.",
+  "description": "Sign in with GitHub for Embers \u2014 Edge-safe (Web Crypto + jose only, no node: imports), so Next middleware can import it.",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./openapi.yaml": "./openapi.yaml"
+    ".": "./src/index.ts"
   },
   "files": [
-    "src",
-    "openapi.yaml",
-    "examples"
+    "src"
   ],
   "engines": {
     "node": ">=22"
@@ -23,11 +20,10 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src",
-    "typecheck": "tsc --noEmit",
-    "capture-examples": "./scripts/capture-examples.sh"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "zod": "^3.23"
+    "jose": "^6.2.12"
   },
   "devDependencies": {
     "@eslint/js": "^9",

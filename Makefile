@@ -3,12 +3,10 @@
 # Full local environment.
 setup:
 	pnpm install
-	pnpm -r --filter "./packages/*" run build
 
 # CI's only install entrypoint: lockfile-frozen.
 setup-ci:
 	pnpm install --frozen-lockfile
-	pnpm -r --filter "./packages/*" run build
 
 build:
 	pnpm -r run build

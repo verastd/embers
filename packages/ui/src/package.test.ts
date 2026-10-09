@@ -19,10 +19,18 @@ describe('@embers/ui entry points', () => {
       'SlideToConfirm', 'SpeedSlider', 'Toggle',
       'DataTable', 'Pager', 'Dialog', 'EventTimeline', 'FillGauge', 'FilterBar', 'FilterField', 'GlowCard', 'JobPhaseList',
       'LiveTicker', 'ProgressRing', 'RecommendedBeam', 'StepFlow', 'Receipt', 'WaitIndicator',
-      'PageHeader', 'Block', 'Card', 'TileRow', 'FactList', 'TextField', 'InlineField', 'JobProgress', 'ConfirmDialog', 'TimeSeriesChart', 'Sparkline', 'EmbersThemeProvider',
+      'PageHeader', 'Block', 'Card', 'TileRow', 'FactList', 'TextField', 'InlineField', 'JobProgress', 'ConfirmDialog', 'EmbersThemeProvider',
     ]) {
       expect(ui, name).toHaveProperty(name);
     }
+  });
+
+  it('keeps the charts in their own entry, out of the main barrel', async () => {
+    const ui = await import('./index');
+    const charts = await import('./charts');
+    expect(ui).not.toHaveProperty('TimeSeriesChart');
+    expect(charts).toHaveProperty('TimeSeriesChart');
+    expect(charts).toHaveProperty('Sparkline');
   });
 
   it('names the self-hosted faces', async () => {
