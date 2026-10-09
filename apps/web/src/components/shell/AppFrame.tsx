@@ -10,9 +10,9 @@
  * Route changes show the top progress bar (PRD 5.8) from the click until
  * the new URL renders.
  *
+ * Account: GitHub sign-in (TD's decision for F-301) in the trailing slot.
  * Not here yet, by design (PRD §0 rule 7, no placeholder UI): the
- * notifications bell (F-1701) and the account menu (F-301), which arrive
- * with their features.
+ * notifications bell (F-1701), which arrives with its feature.
  */
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -27,6 +27,8 @@ import { useDebouncedValue, useLedgerQuery } from '@/lib/hooks';
 import { queryKey } from '@/lib/query-core';
 
 import { NAV, ROUTES, activeHref, isNavItems } from './nav';
+import { AccountControl } from './AccountControl';
+import type { AccountUser } from './AccountControl';
 import { MIN_QUERY, PER_KIND, isRows, pushRecent, searchRows } from './search';
 import { isStrings, readStored, writeStored } from './storage';
 
@@ -81,7 +83,7 @@ function useRouteProgress(): { routing: boolean; start: () => void; stop: () => 
   return { routing, start, stop };
 }
 
-export function AppFrame({ children }: { children: ReactNode }) {
+export function AppFrame({ children, user, signInAvailable }: { children: ReactNode; user: AccountUser | null; signInAvailable: boolean }) {
   const pathname = usePathname() ?? '/';
   const router = useRouter();
   const { theme, setTheme } = useEmbersTheme();
@@ -185,7 +187,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
               Embers
             </Link>
           }
-          trailing={null}
+          trailing={<AccountControl user={user} signInAvailable={signInAvailable} />}
         />
       }
       sidebar={nav}

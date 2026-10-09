@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * @embers/ui — the Embers design system (design_handoff_embers), ported to
  * TSX. Feature code imports UI only from here (COMPONENT_MAP: "feature code
@@ -57,6 +59,4 @@ export * from './layout/TopBar';
 export * from './kit/Page';
 export * from './kit/InlineField';
 export * from './kit/TextField';
-export * from './charts/Chart';
-export type { ChartPalette, TimeSeriesBand, TimeSeriesLine, TimeSeriesSpec } from './charts/options';
 export * from './theme';

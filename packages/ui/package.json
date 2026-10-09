@@ -4,23 +4,16 @@
   "private": true,
   "description": "Embers design system: tokens, self-hosted fonts and the Embers components (design_handoff_embers), ported to TSX. Feature code imports UI only from here.",
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
+    ".": "./src/index.ts",
     "./styles.css": "./src/styles/embers.css",
-    "./fonts": {
-      "types": "./dist/fonts.d.ts",
-      "import": "./dist/fonts.js"
-    }
+    "./fonts": "./src/fonts.ts",
+    "./charts": "./src/charts/index.ts"
   },
   "files": [
-    "dist",
-    "src/styles"
+    "src"
   ],
   "sideEffects": [
     "*.css",
