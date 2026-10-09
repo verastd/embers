@@ -35,12 +35,14 @@ export * from './controls/SpeedSlider';
 export * from './controls/Toggle';
 
 export * from './feedback/DataTable';
+export * from './feedback/ConfirmDialog';
 export * from './feedback/Dialog';
 export * from './feedback/EventTimeline';
 export * from './feedback/FillGauge';
 export * from './feedback/FilterBar';
 export * from './feedback/GlowCard';
 export * from './feedback/JobPhaseList';
+export * from './feedback/JobProgress';
 export * from './feedback/LiveTicker';
 export * from './feedback/ProgressRing';
 export * from './feedback/RecommendedBeam';
@@ -53,6 +55,7 @@ export * from './layout/SidebarNav';
 export * from './layout/TopBar';
 
 export * from './kit/Page';
+export * from './kit/InlineField';
 export * from './kit/TextField';
 export * from './charts/Chart';
 export type { ChartPalette, TimeSeriesBand, TimeSeriesLine, TimeSeriesSpec } from './charts/options';

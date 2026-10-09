@@ -19,7 +19,7 @@ describe('@embers/ui entry points', () => {
       'SlideToConfirm', 'SpeedSlider', 'Toggle',
       'DataTable', 'Pager', 'Dialog', 'EventTimeline', 'FillGauge', 'FilterBar', 'FilterField', 'GlowCard', 'JobPhaseList',
       'LiveTicker', 'ProgressRing', 'RecommendedBeam', 'StepFlow', 'Receipt', 'WaitIndicator',
-      'PageHeader', 'Block', 'Card', 'TileRow', 'FactList', 'TextField', 'TimeSeriesChart', 'Sparkline', 'EmbersThemeProvider',
+      'PageHeader', 'Block', 'Card', 'TileRow', 'FactList', 'TextField', 'InlineField', 'JobProgress', 'ConfirmDialog', 'TimeSeriesChart', 'Sparkline', 'EmbersThemeProvider',
     ]) {
       expect(ui, name).toHaveProperty(name);
     }

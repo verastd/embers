@@ -6,7 +6,7 @@
  * (focusable) with a reason instead of native disabled.
  */
 import { useId } from 'react';
-import type { CSSProperties, KeyboardEvent } from 'react';
+import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 
 import { Icon } from '../core/Icon';
 import type { IconName } from '../core/Icon';
@@ -25,6 +25,11 @@ export interface TextFieldProps {
   /** Monospace input (account names, ids). */
   mono?: boolean;
   onEnter?: () => void;
+  onBlur?: () => void;
+  /** Inside the box, after the input: a spinner or check (InlineField). */
+  trailing?: ReactNode;
+  /** Ids of extra descriptions (a status line). */
+  describedBy?: string;
   style?: CSSProperties;
 }
 
@@ -43,6 +48,9 @@ export function TextField({
   size = 'dense',
   mono,
   onEnter,
+  onBlur,
+  trailing,
+  describedBy,
   style,
 }: TextFieldProps) {
   const id = useId();
@@ -84,7 +92,7 @@ export function TextField({
           readOnly={!!disabledReason}
           aria-disabled={disabledReason ? true : undefined}
           aria-invalid={error ? true : undefined}
-          aria-describedby={[error ? errId : null, disabledReason ? reasonId : null].filter(Boolean).join(' ') || undefined}
+          aria-describedby={[error ? errId : null, disabledReason ? reasonId : null, describedBy ?? null].filter(Boolean).join(' ') || undefined}
           title={disabledReason}
           autoComplete="off"
           spellCheck={false}
@@ -92,6 +100,7 @@ export function TextField({
             if (!disabledReason) onChange(e.target.value);
           }}
           onKeyDown={onKeyDown}
+          onBlur={onBlur}
           style={{
             all: 'unset',
             flex: '1 1 0',
@@ -102,9 +111,10 @@ export function TextField({
             cursor: disabledReason ? 'not-allowed' : 'text',
           }}
         />
+        {trailing}
       </span>
       {disabledReason && (
-        <span id={reasonId} className="em-sr">
+        <span id={reasonId} style={{ font: 'var(--type-caption)', color: 'var(--text-muted)' }}>
           {disabledReason}
         </span>
       )}

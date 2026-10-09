@@ -27,3 +27,4 @@ jobs:
       - run: make lint
       - run: make test-coverage
       - run: pnpm --filter @embers/web run build
+      - run: pnpm --filter @embers/ui run build-storybook
