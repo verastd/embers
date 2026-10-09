@@ -15,17 +15,15 @@ test('signed out: the top bar offers Sign in with GitHub, returning to this page
   await expect(link).toHaveAttribute('href', '/auth/signin?next=%2Fproperties%2Fsearch');
 });
 
-test('signing in from a filtered search returns to the same filters (Codex review on #3)', async ({ page }) => {
-  let started: URL | null = null;
-  // Stop at our own /auth/signin: the test checks the return URL, and never goes on to GitHub.
-  await page.route('**/auth/signin?*', (route) => {
-    started = new URL(route.request().url());
-    return route.fulfill({ status: 200, contentType: 'text/html', body: 'stopped before GitHub' });
-  });
+test('the sign-in link itself carries the page’s filters, and follows them as they change (Codex review on #3, #4)', async ({ page }) => {
   await page.goto('/properties/search?search=1&address=SEARSDALE');
-  await page.getByRole('link', { name: 'Sign in with GitHub' }).click();
-  await expect(page.getByText('stopped before GitHub')).toBeVisible();
-  expect((started as unknown as URL).searchParams.get('next')).toBe('/properties/search?search=1&address=SEARSDALE');
+  const link = page.getByRole('link', { name: 'Sign in with GitHub' });
+  // The href itself, so middle-click, new tab and copied links all keep the filters.
+  await expect(link).toHaveAttribute('href', '/auth/signin?next=%2Fproperties%2Fsearch%3Fsearch%3D1%26address%3DSEARSDALE');
+  // Filters change through history.replaceState; the href follows.
+  await page.getByLabel('Address contains').fill('210TH');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(link).toHaveAttribute('href', /next=%2Fproperties%2Fsearch%3F.*address%3D210TH/);
 });
 
 test('/auth/signin redirects to GitHub with state, PKCE S256 and our callback, and sets the attempt cookie', async ({ request }) => {

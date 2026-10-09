@@ -7,13 +7,31 @@
  * button shows its pending state until the browser leaves). Escape and a
  * click outside close the menu; focus returns to the trigger.
  */
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { Button, Icon, Spinner } from '@embers/ui';
-import { useEffect, useId, useRef, useState } from 'react';
-import type { MouseEvent as ReactMouseEvent } from 'react';
+import { Suspense, useEffect, useId, useRef, useState } from 'react';
 
 /** Where "Sign in with GitHub" goes: back to `returnTo` (path + query) afterwards. */
 export const signInHref = (returnTo: string): string => `/auth/signin?next=${encodeURIComponent(returnTo)}`;
+
+/**
+ * The link's own href carries the full return URL, query included, so every
+ * way of following it (click, middle-click, new tab, copied address) keeps
+ * the page's filters. useSearchParams follows history.replaceState, which is
+ * how filters change, so the href stays current.
+ */
+function SignInLinkWithQuery({ pathname }: { pathname: string }) {
+  const search = useSearchParams()?.toString() ?? '';
+  return <SignInLink returnTo={search ? `${pathname}?${search}` : pathname} />;
+}
+
+function SignInLink({ returnTo }: { returnTo: string }) {
+  return (
+    <Button as="a" href={signInHref(returnTo)} variant="secondary" size="dense" icon="log-in">
+      Sign in with GitHub
+    </Button>
+  );
+}
 
 export interface AccountUser {
   login: string;
@@ -57,20 +75,9 @@ export function AccountControl({ user, signInAvailable }: { user: AccountUser | 
       );
     }
     return (
-      <Button
-        as="a"
-        href={signInHref(pathname)}
-        // Filters live in the query string and change without a re-render
-        // (history.replaceState), so the return URL is read at click time.
-        onClick={(e: ReactMouseEvent<HTMLAnchorElement>) => {
-          e.currentTarget.href = signInHref(window.location.pathname + window.location.search);
-        }}
-        variant="secondary"
-        size="dense"
-        icon="log-in"
-      >
-        Sign in with GitHub
-      </Button>
+      <Suspense fallback={<SignInLink returnTo={pathname} />}>
+        <SignInLinkWithQuery pathname={pathname} />
+      </Suspense>
     );
   }
 
