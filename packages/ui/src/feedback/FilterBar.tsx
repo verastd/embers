@@ -21,13 +21,17 @@ export interface FilterBarProps {
   state?: FilterBarState;
   onApply?: () => Promise<unknown>;
   onReset?: () => void;
+  /** "Search" on search pages (PRD F-403 actions); default "Apply". */
+  applyLabel?: string;
+  /** Present progressive, e.g. "Searching…". */
+  applyPendingLabel?: string;
   appliedCount?: number;
   extra?: ReactNode;
   children: ReactNode;
   style?: CSSProperties;
 }
 
-export function FilterBar({ state = 'clean', children, onApply, onReset, appliedCount, extra, style }: FilterBarProps) {
+export function FilterBar({ state = 'clean', children, onApply, onReset, applyLabel = 'Apply', applyPendingLabel = 'Applying…', appliedCount, extra, style }: FilterBarProps) {
   const dirty = state === 'dirty';
   const applying = state === 'applying';
   const applyRef = useRef<HTMLSpanElement>(null);
@@ -100,8 +104,8 @@ export function FilterBar({ state = 'clean', children, onApply, onReset, applied
         <AsyncButton
           size="dense"
           variant={dirty ? 'primary' : 'secondary'}
-          label="Apply"
-          pendingLabel="Applying…"
+          label={applyLabel}
+          pendingLabel={applyPendingLabel}
           state={applying ? 'pending' : undefined}
           onAction={onApply}
           disabledReason={state === 'clean' || state === 'applied' ? 'No changes to apply' : undefined}
