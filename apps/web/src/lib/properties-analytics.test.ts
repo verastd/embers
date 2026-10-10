@@ -4,7 +4,9 @@ import type { AnalyticsResult, CityDay } from '@embers/ledger';
 
 import { fixture } from './fixtures.test-helper';
 import {
+  appliedRange,
   CITY_SORTS,
+  cityDaysParams,
   cityFromSegment,
   cityHref,
   cityStats,
@@ -25,6 +27,7 @@ import {
   onlyLatestDay,
   rangeLength,
   rangeProblem,
+  rangeStaleMinutes,
   records,
   salesSeriesByDay,
   sortCities,
@@ -266,5 +269,43 @@ describe('rangeProblem', () => {
     expect(rangeProblem('2024-01-01', '2026-10-01', 'Rome')).toBe('Up to 365 days at a time');
     expect(rangeProblem('2026-06-01', '2026-10-01', '')).toMatch(/All cities: up to 60 days/);
     expect(rangeProblem('2026-06-01', '2026-10-01', 'Rome')).toBeNull();
+  });
+});
+
+describe('review fixes (#10)', () => {
+  it('refuses an unbounded URL range without walking it (?from=0000-01-01&to=9999-12-31)', () => {
+    const t0 = Date.now();
+    const r = appliedRange('0000-01-01', '9999-12-31', undefined, 30, NOW);
+    expect(r).toEqual({ range: null, problem: 'Up to 365 days at a time' });
+    expect(appliedRange('0000-01-01', '9999-12-31', 'Rome', 30, NOW).range).toBeNull();
+    expect(daysBetween({ after: '0000-01-01', before: '9999-12-31' })).toEqual([]);
+    expect(rangeLength({ after: '0000-01-01', before: '9999-12-31' })).toBeGreaterThan(3_000_000);
+    expect(Date.now() - t0).toBeLessThan(200);
+  });
+
+  it('applies the 60-day all-cities limit and the defaults from the URL too', () => {
+    expect(appliedRange('2026-06-01', '2026-10-01', undefined, 30, NOW).problem).toMatch(/All cities: up to 60 days/);
+    expect(appliedRange('2026-06-01', '2026-10-01', 'Rome', 30, NOW)).toEqual({ range: { after: '2026-06-01', before: '2026-10-01' }, problem: null });
+    expect(appliedRange(undefined, undefined, undefined, 30, NOW)).toEqual({ range: lastDays(30, NOW), problem: null });
+    expect(appliedRange('2026-10-08', '2026-10-01', 'Rome', 30, NOW).problem).toBe('From must not be after To');
+    expect(appliedRange('2026-10-01', undefined, 'Rome', 30, NOW).problem).toBe('Set both From and To, or neither');
+    expect(daysBetween({ after: '2025-01-01', before: '2026-01-01' })).toHaveLength(366);
+  });
+
+  it('judges staleness only for ranges that reach the freshness window', () => {
+    // NOW is 2026-10-09: yesterday is 2026-10-08.
+    expect(rangeStaleMinutes({ after: '2026-09-01', before: '2026-09-30' }, '2026-09-30', NOW)).toBeNull();
+    expect(rangeStaleMinutes({ after: '2026-09-10', before: '2026-10-08' }, '2026-10-07', NOW)).toBe(36 * 60);
+    expect(rangeStaleMinutes({ after: '2026-09-10', before: '2026-10-09' }, '2026-10-08', NOW)).toBeNull();
+  });
+
+  it('"Latest day" asks for the newest rows with no date cutoff', () => {
+    expect(cityDaysParams('latest', undefined, NOW)).toEqual({ city: undefined, limit: 500 });
+    expect(cityDaysParams('latest', 'Rome', NOW)).toEqual({ city: 'Rome', limit: 1 });
+    expect(cityDaysParams('7', 'Rome', NOW)).toEqual({ city: 'Rome', after: '2026-10-03', before: '2026-10-09', limit: 5000 });
+    // A build outage of weeks still yields that last day's rows.
+    const old = [day('2026-08-01', 'X'), day('2026-08-01', 'Y'), day('2026-07-31', 'X')];
+    expect(onlyLatestDay(old).map((r) => r.city)).toEqual(['X', 'Y']);
+    expect(marketStaleMinutes(latestDay(old), NOW)).toBeGreaterThan(60 * 24 * 60);
   });
 });

@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Countdown } from './Countdown';
-import { DataState } from './DataState';
+import { DataState, formatAge } from './DataState';
 import { LiveIndicator } from './LiveIndicator';
 import { LockedFeature } from './LockedFeature';
 import { StatTile } from './StatTile';
@@ -89,6 +89,10 @@ describe('DataState', () => {
       </DataState>,
     );
     expect(screen.getByText('Data is 12 min old')).toBeTruthy();
+    expect(formatAge(2300)).toBe('38 h');
+    expect(formatAge(60 * 72)).toBe('3 d');
+    expect(formatAge(119)).toBe('119 min');
+    expect(formatAge(-5)).toBe('0 min');
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     expect(refresh).toHaveBeenCalledOnce();
     await act(async () => {

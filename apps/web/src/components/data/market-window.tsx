@@ -7,7 +7,7 @@
  *
  * `/market/cities` is one row per city per day; the market layer is rebuilt
  * every 6 h, so "Latest day" is the newest day the ledger has rows for
- * (read from the last week), not necessarily today.
+ * (no date bound: newest first), not necessarily today.
  */
 import type { CityDay, CitiesParams } from '@embers/ledger';
 
@@ -15,7 +15,7 @@ import { ChipsField } from './ChipsField';
 import { formatDay } from '@/lib/format';
 import { useLedgerQuery } from '@/lib/hooks';
 import type { QueryResult } from '@/lib/hooks';
-import { lastDays, onlyLatestDay } from '@/lib/properties-analytics';
+import { cityDaysParams, onlyLatestDay } from '@/lib/properties-analytics';
 import { queryKey } from '@/lib/query-core';
 
 export type MarketWindow = 'latest' | '7' | '30';
@@ -36,8 +36,7 @@ export function windowPhrase(w: MarketWindow): string {
 
 /** `/market/cities` for the window (all cities, or one), through the shared heavy-query slot. */
 export function useCityDays(win: MarketWindow, city?: string): QueryResult<CityDay[]> {
-  const range = lastDays(win === 'latest' ? 8 : Number(win));
-  const params: CitiesParams = { city, after: range.after, before: range.before, limit: 5000 };
+  const params: CitiesParams = cityDaysParams(win, city);
   return useLedgerQuery<CityDay[]>(
     queryKey('/market/cities', { ...params, window: win }),
     async (c, signal) => {

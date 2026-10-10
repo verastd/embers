@@ -28,19 +28,29 @@ export function lastDays(days: number, now: number = Date.now()): DayRange {
   return { after: utcDayOffset(Math.max(1, days) - 1, now), before: utcDayOffset(0, now) };
 }
 
-/** Every day from `after` to `before` inclusive (empty when reversed), for a gap-free axis. */
-export function daysBetween(range: DayRange): string[] {
+/** Hard ceiling on any category axis we build, whatever range reaches us. */
+export const MAX_AXIS_DAYS = 400;
+
+/** Days in a range, inclusive; 0 when reversed or invalid. Arithmetic, so any range is cheap to measure. */
+export function rangeLength(range: DayRange): number {
   const start = Date.parse(`${range.after}T00:00:00Z`);
   const end = Date.parse(`${range.before}T00:00:00Z`);
-  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return [];
-  const out: string[] = [];
-  for (let t = start; t <= end; t += 86_400_000) out.push(new Date(t).toISOString().slice(0, 10));
-  return out;
+  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return 0;
+  return Math.round((end - start) / 86_400_000) + 1;
 }
 
-/** Days in a range, inclusive; 0 when reversed or invalid. */
-export function rangeLength(range: DayRange): number {
-  return daysBetween(range).length;
+/**
+ * Every day from `after` to `before` inclusive (empty when reversed), for a
+ * gap-free axis. A range longer than MAX_AXIS_DAYS yields nothing rather
+ * than millions of categories: callers validate ranges before this.
+ */
+export function daysBetween(range: DayRange): string[] {
+  const n = rangeLength(range);
+  if (n === 0 || n > MAX_AXIS_DAYS) return [];
+  const start = Date.parse(`${range.after}T00:00:00Z`);
+  const out: string[] = [];
+  for (let i = 0; i < n; i++) out.push(new Date(start + i * 86_400_000).toISOString().slice(0, 10));
+  return out;
 }
 
 /** A YYYY-MM-DD that is a real calendar day. */
@@ -67,6 +77,49 @@ export function rangeProblem(from: string, to: string, city: string): string | n
   if (n > MAX_DAYS) return `Up to ${MAX_DAYS} days at a time`;
   if (!city.trim() && n > MAX_DAYS_ALL_CITIES) return `All cities: up to ${MAX_DAYS_ALL_CITIES} days. Pick a city for a longer range.`;
   return null;
+}
+
+export interface AppliedRange {
+  /** The range to read and chart; null when the URL's range cannot be shown. */
+  range: DayRange | null;
+  /** Why the URL's range was refused, in words. */
+  problem: string | null;
+}
+
+/**
+ * The statistics range from the URL. No dates means the default (the last
+ * `defaultDays`); dates are held to the same rules as the form
+ * (`rangeProblem`), so a hand-edited link such as
+ * `?from=0000-01-01&to=9999-12-31` is refused instead of read.
+ */
+export function appliedRange(from: string | undefined, to: string | undefined, city: string | undefined, defaultDays: number, now: number = Date.now()): AppliedRange {
+  if (!from && !to) return { range: lastDays(defaultDays, now), problem: null };
+  const problem = rangeProblem(from ?? '', to ?? '', city ?? '');
+  if (problem !== null) return { range: null, problem };
+  return { range: { after: from!, before: to! }, problem: null };
+}
+
+/**
+ * Staleness only means something when the range reaches the market layer's
+ * freshness window (ends yesterday or later). A deliberately historical
+ * range is complete, not stale.
+ */
+export function rangeStaleMinutes(range: DayRange, latest: string | null, now: number = Date.now()): number | null {
+  if (range.before < utcDayOffset(1, now)) return null;
+  return marketStaleMinutes(latest, now);
+}
+
+/**
+ * `/market/cities` params for an overview window. "Latest day" sets no date
+ * bound: the route answers newest day first, so the first rows are the last
+ * day the market layer built, however long ago that was (an outage then
+ * shows that day with the stale banner, never an empty page). 500 rows
+ * cover one day of every city (~65) many times over.
+ */
+export function cityDaysParams(win: 'latest' | '7' | '30', city: string | undefined, now: number = Date.now()): { city?: string; after?: string; before?: string; limit: number } {
+  if (win === 'latest') return { city, limit: city ? 1 : 500 };
+  const range = lastDays(Number(win), now);
+  return { city, after: range.after, before: range.before, limit: 5000 };
 }
 
 /** Newest day present in the rows, or null. */

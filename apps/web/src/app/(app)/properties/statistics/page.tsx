@@ -31,7 +31,7 @@ import { Region } from '@/components/data/Region';
 import { countApplied, readText } from '@/lib/filters';
 import { formatInt, formatMultiple, formatShortDay, formatUpx, formatUsd } from '@/lib/format';
 import { useLedgerQuery } from '@/lib/hooks';
-import { dailyActivity, dailyPrices, daysBetween, instantRange, isDay, lastDays, latestDay, marketStaleMinutes, MAX_DAYS_ALL_CITIES, rangeProblem, salesSeriesByDay } from '@/lib/properties-analytics';
+import { appliedRange, dailyActivity, dailyPrices, daysBetween, instantRange, lastDays, latestDay, MAX_DAYS_ALL_CITIES, rangeProblem, rangeStaleMinutes, salesSeriesByDay } from '@/lib/properties-analytics';
 import type { DayRange } from '@/lib/properties-analytics';
 import { queryKey } from '@/lib/query-core';
 import { useFilters } from '@/lib/useFilters';
@@ -43,12 +43,6 @@ const PRESETS = ['30', '90', '180', '365'] as const;
 type Preset = (typeof PRESETS)[number];
 
 const CHART_SKELETON = <Skeleton height={300} />;
-
-/** The applied range, or the default when the URL has none / a bad one. */
-function appliedRange(from: string | undefined, to: string | undefined): DayRange {
-  if (from && to && isDay(from) && isDay(to) && from <= to) return { after: from, before: to };
-  return lastDays(DEFAULT_DAYS);
-}
 
 export default function PropertiesStatisticsPage() {
   return (
@@ -62,14 +56,20 @@ function PropertiesStatistics() {
   const params = useSearchParams() ?? new URLSearchParams();
   const filters = useFilters(KEYS);
   const city = readText(params, 'city', 64);
-  const range = appliedRange(readText(params, 'from', 10), readText(params, 'to', 10));
+  const urlRange = appliedRange(readText(params, 'from', 10), readText(params, 'to', 10), city, DEFAULT_DAYS);
+  // A refused URL range reads nothing; the axis below is built only from a validated range.
+  const range: DayRange = urlRange.range ?? lastDays(DEFAULT_DAYS);
   const { after, before } = range;
   const days = useMemo(() => daysBetween({ after, before }), [after, before]);
 
   const cityParams: CitiesParams = { city, after: range.after, before: range.before, limit: ROW_CAP };
-  const market = useLedgerQuery<CityDay[]>(queryKey('/market/cities', cityParams), (c, signal) => c.market.cities(cityParams, { signal }), { heavy: true, keepPrevious: true });
+  const market = useLedgerQuery<CityDay[]>(
+    urlRange.range ? queryKey('/market/cities', cityParams) : null,
+    (c, signal) => c.market.cities(cityParams, { signal }),
+    { heavy: true, keepPrevious: true },
+  );
   const chainSales = useLedgerQuery<SalesAnalytics>(
-    city ? null : queryKey('/analytics/sales', { ...range, bucket: 'day' }),
+    city || !urlRange.range ? null : queryKey('/analytics/sales', { ...range, bucket: 'day' }),
     (c, signal) => c.analytics.sales({ ...instantRange(range), bucket: 'day', bins: 4 }, { signal }),
     { heavy: true, keepPrevious: true, isEmpty: (s) => s.series.rows.length === 0 },
   );
@@ -79,7 +79,7 @@ function PropertiesStatistics() {
   const applied = countApplied({ city, from: params.get('from') ?? undefined, to: params.get('to') ?? undefined }, ['city', 'from', 'to']);
   const latest = latestDay(market.data ?? []);
   const capped = (market.data?.length ?? 0) >= ROW_CAP ? ROW_CAP : null;
-  const stale = marketStaleMinutes(latest);
+  const stale = rangeStaleMinutes(range, latest);
   const draftPreset = PRESETS.find((p) => {
     const r = lastDays(Number(p));
     return d.from === r.after && d.to === r.before;
@@ -133,98 +133,106 @@ function PropertiesStatistics() {
         <TextField label="To" placeholder={range.before} value={d.to} onChange={(v) => filters.set('to', v)} onEnter={() => !problem && filters.apply()} width={130} mono maxLength={10} error={problem} />
       </FilterBar>
 
-      <Block id="transactions" title="Transactions made" note={`Per day, ${scope}, ${range.after} to ${range.before} (UTC).`}>
-        <Region
-          query={market}
-          skeleton={CHART_SKELETON}
-          emptyMessage="No data for this range"
-          emptyAction={resetAction}
-          staleMinutes={stale}
-          cappedCount={capped}
-        >
-          {() => (
-            <ExploreChart
-              kind="stacked-bar"
-              label={`Transactions made, ${scope}`}
-              categories={days}
-              formatAxis={formatShortDay}
-              formatValue={(v) => formatInt(v)}
-              series={[
-                { name: 'Sales', values: activity.map((a) => a.sales), tone: 1 },
-                { name: 'New listings', values: activity.map((a) => a.listingsNew), tone: 2 },
-                { name: 'Listings removed', values: activity.map((a) => a.listingsRemoved), tone: 3 },
-                { name: 'Mints', values: activity.map((a) => a.mints), tone: 4 },
-              ]}
-            />
-          )}
-        </Region>
-      </Block>
-
-      {city ? (
-        <>
-          <Block
-            id="prices-upx"
-            title="Price statistics (UPX)"
-            note="Daily medians: sale prices, and asks of listings created that day."
-            aside={
-              <span style={{ display: 'inline-flex', gap: 12, flexWrap: 'wrap' }}>
-                <Check checked={showSale} onChange={setShowSale} label="Median sale" />
-                <Check checked={showAsk} onChange={setShowAsk} label="Median ask" />
-              </span>
-            }
-          >
-            <Region query={market} skeleton={CHART_SKELETON} emptyMessage="No data for this range" emptyAction={resetAction}>
-              {() =>
-                upxSeries.length === 0 ? (
-                  <DataState state="empty" emptyMessage="Every series is switched off" emptyAction="Show all" onEmptyAction={() => (setShowSale(true), setShowAsk(true))} />
-                ) : !upxSeries.some((s) => hasAny(s.values)) ? (
-                  <DataState state="empty" emptyMessage={`No UPX prices recorded for ${city} in this range`} emptyAction={resetAction?.label} onEmptyAction={resetAction?.onClick} />
-                ) : (
-                  <ExploreChart kind="line" label={`Price statistics in UPX, ${city}`} categories={days} formatAxis={formatShortDay} formatValue={(v) => formatUpx(v)} series={upxSeries} />
-                )
-              }
-            </Region>
-          </Block>
-
-          <Block id="prices-usd" title="Price statistics (USD)" note="Daily median USD ask of listings created that day.">
-            <Region query={market} skeleton={CHART_SKELETON} emptyMessage="No data for this range" emptyAction={resetAction}>
-              {() =>
-                hasAny(prices.map((p) => p.medianAskUsd)) ? (
-                  <ExploreChart kind="line" label={`Price statistics in USD, ${city}`} categories={days} formatAxis={formatShortDay} formatValue={formatUsd} series={[{ name: 'Median ask (USD)', values: prices.map((p) => p.medianAskUsd), tone: 3 }]} />
-                ) : (
-                  <DataState state="empty" emptyMessage={`No USD asks recorded for ${city} in this range`} emptyAction={resetAction?.label} onEmptyAction={resetAction?.onClick} />
-                )
-              }
-            </Region>
-          </Block>
-
-          <Block id="markup" title="Markup" note="Daily median of sale price ÷ mint price (1.5× = 50 % over mint).">
-            <Region query={market} skeleton={CHART_SKELETON} emptyMessage="No data for this range" emptyAction={resetAction}>
-              {() =>
-                hasAny(prices.map((p) => p.medianSaleToMint)) ? (
-                  <ExploreChart kind="line" label={`Median markup, ${city}`} categories={days} formatAxis={formatShortDay} formatValue={formatMultiple} series={[{ name: 'Median sale ÷ mint', values: prices.map((p) => p.medianSaleToMint), tone: 4 }]} />
-                ) : (
-                  <DataState state="empty" emptyMessage={`No markups recorded for ${city} in this range`} emptyAction={resetAction?.label} onEmptyAction={resetAction?.onClick} />
-                )
-              }
-            </Region>
-          </Block>
-        </>
-      ) : (
-        <Block id="prices-upx" title="Price statistics (UPX)" note="Chain-wide daily median sale price. Asks, USD and markup are kept per city: pick a city to chart them.">
-          <Region query={chainSales} skeleton={CHART_SKELETON} emptyMessage="No sales recorded in this range" emptyAction={resetAction}>
-            {() => (
-              <ExploreChart
-                kind="line"
-                label="Median sale price, all cities"
-                categories={days}
-                formatAxis={formatShortDay}
-                formatValue={(v) => formatUpx(v)}
-                series={[{ name: 'Median sale, all cities', values: chainSeries.map((s) => s.median), tone: 1 }]}
-              />
-            )}
-          </Region>
+      {urlRange.problem !== null ? (
+        <Block id="range-problem" title="This range can't be shown">
+          <DataState state="empty" emptyMessage={`The dates in this link were refused: ${urlRange.problem}`} emptyAction="Reset filters" onEmptyAction={filters.reset} />
         </Block>
+      ) : (
+        <>
+          <Block id="transactions" title="Transactions made" note={`Per day, ${scope}, ${range.after} to ${range.before} (UTC).`}>
+            <Region
+              query={market}
+              skeleton={CHART_SKELETON}
+              emptyMessage="No data for this range"
+              emptyAction={resetAction}
+              staleMinutes={stale}
+              cappedCount={capped}
+            >
+              {() => (
+                <ExploreChart
+                  kind="stacked-bar"
+                  label={`Transactions made, ${scope}`}
+                  categories={days}
+                  formatAxis={formatShortDay}
+                  formatValue={(v) => formatInt(v)}
+                  series={[
+                    { name: 'Sales', values: activity.map((a) => a.sales), tone: 1 },
+                    { name: 'New listings', values: activity.map((a) => a.listingsNew), tone: 2 },
+                    { name: 'Listings removed', values: activity.map((a) => a.listingsRemoved), tone: 3 },
+                    { name: 'Mints', values: activity.map((a) => a.mints), tone: 4 },
+                  ]}
+                />
+              )}
+            </Region>
+          </Block>
+
+          {city ? (
+            <>
+              <Block
+                id="prices-upx"
+                title="Price statistics (UPX)"
+                note="Daily medians: sale prices, and asks of listings created that day."
+                aside={
+                  <span style={{ display: 'inline-flex', gap: 12, flexWrap: 'wrap' }}>
+                    <Check checked={showSale} onChange={setShowSale} label="Median sale" />
+                    <Check checked={showAsk} onChange={setShowAsk} label="Median ask" />
+                  </span>
+                }
+              >
+                <Region query={market} skeleton={CHART_SKELETON} emptyMessage="No data for this range" emptyAction={resetAction}>
+                  {() =>
+                    upxSeries.length === 0 ? (
+                      <DataState state="empty" emptyMessage="Every series is switched off" emptyAction="Show all" onEmptyAction={() => (setShowSale(true), setShowAsk(true))} />
+                    ) : !upxSeries.some((s) => hasAny(s.values)) ? (
+                      <DataState state="empty" emptyMessage={`No UPX prices recorded for ${city} in this range`} emptyAction={resetAction?.label} onEmptyAction={resetAction?.onClick} />
+                    ) : (
+                      <ExploreChart kind="line" label={`Price statistics in UPX, ${city}`} categories={days} formatAxis={formatShortDay} formatValue={(v) => formatUpx(v)} series={upxSeries} />
+                    )
+                  }
+                </Region>
+              </Block>
+
+              <Block id="prices-usd" title="Price statistics (USD)" note="Daily median USD ask of listings created that day.">
+                <Region query={market} skeleton={CHART_SKELETON} emptyMessage="No data for this range" emptyAction={resetAction}>
+                  {() =>
+                    hasAny(prices.map((p) => p.medianAskUsd)) ? (
+                      <ExploreChart kind="line" label={`Price statistics in USD, ${city}`} categories={days} formatAxis={formatShortDay} formatValue={formatUsd} series={[{ name: 'Median ask (USD)', values: prices.map((p) => p.medianAskUsd), tone: 3 }]} />
+                    ) : (
+                      <DataState state="empty" emptyMessage={`No USD asks recorded for ${city} in this range`} emptyAction={resetAction?.label} onEmptyAction={resetAction?.onClick} />
+                    )
+                  }
+                </Region>
+              </Block>
+
+              <Block id="markup" title="Markup" note="Daily median of sale price ÷ mint price (1.5× = 50 % over mint).">
+                <Region query={market} skeleton={CHART_SKELETON} emptyMessage="No data for this range" emptyAction={resetAction}>
+                  {() =>
+                    hasAny(prices.map((p) => p.medianSaleToMint)) ? (
+                      <ExploreChart kind="line" label={`Median markup, ${city}`} categories={days} formatAxis={formatShortDay} formatValue={formatMultiple} series={[{ name: 'Median sale ÷ mint', values: prices.map((p) => p.medianSaleToMint), tone: 4 }]} />
+                    ) : (
+                      <DataState state="empty" emptyMessage={`No markups recorded for ${city} in this range`} emptyAction={resetAction?.label} onEmptyAction={resetAction?.onClick} />
+                    )
+                  }
+                </Region>
+              </Block>
+            </>
+          ) : (
+            <Block id="prices-upx" title="Price statistics (UPX)" note="Chain-wide daily median sale price. Asks, USD and markup are kept per city: pick a city to chart them.">
+              <Region query={chainSales} skeleton={CHART_SKELETON} emptyMessage="No sales recorded in this range" emptyAction={resetAction}>
+                {() => (
+                  <ExploreChart
+                    kind="line"
+                    label="Median sale price, all cities"
+                    categories={days}
+                    formatAxis={formatShortDay}
+                    formatValue={(v) => formatUpx(v)}
+                    series={[{ name: 'Median sale, all cities', values: chainSeries.map((s) => s.median), tone: 1 }]}
+                  />
+                )}
+              </Region>
+            </Block>
+          )}
+        </>
       )}
     </>
   );

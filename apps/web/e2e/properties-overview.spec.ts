@@ -88,3 +88,19 @@ test('the sidebar lists Overview, Statistics and Mint Analytics under Properties
   await expect(nav.getByRole('link', { name: 'Statistics' })).toBeVisible();
   await expect(nav.getByRole('link', { name: 'Mint Analytics' })).toBeVisible();
 });
+
+test('"Latest day" reads without a date cutoff: a long build outage shows its last day as stale', async ({ page }) => {
+  const seen: URLSearchParams[] = [];
+  const old = (city: string) => ({ day: '2026-08-01', city, sales: 4, volume_upx: 80_000, median_sale_upx: 20_000, median_ask_upx: 25_000, median_ask_usd: 4, listings_new: 3, listings_removed: 1, mints: 0, median_mint_upx: null, median_sale_to_mint: 1.2, yield_payout_upx: 0, distinct_buyers: 2, distinct_sellers: 2 });
+  await page.route('**/bff/ledger/market/cities?*', (route) => {
+    seen.push(new URL(route.request().url()).searchParams);
+    return json(route, [old('Fresno'), old('Detroit'), { ...old('Detroit'), day: '2026-07-31' }]);
+  });
+  await page.goto('/properties/overview?window=latest');
+  await expect(cities(page).getByRole('link', { name: 'Fresno' })).toBeVisible(COLD);
+  await expect(page.getByText('Market data through')).toContainText('Aug 1, 2026');
+  await expect(cities(page).getByText(/Data is \d+ d old/)).toBeVisible();
+  const q = seen[seen.length - 1];
+  expect(q?.get('after')).toBeNull();
+  expect(q?.get('before')).toBeNull();
+});

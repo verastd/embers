@@ -89,3 +89,28 @@ test('an empty payload shows "No data for this range" with Reset filters', async
   await transactions(page).getByRole('button', { name: 'Reset filters' }).click();
   await expect(page).not.toHaveURL(/city=/);
 });
+
+test('a hand-edited unbounded range in the URL is refused with Reset, and nothing is read', async ({ page }) => {
+  let reads = 0;
+  page.on('request', (r) => {
+    if (r.url().includes('/bff/ledger/market/cities') || r.url().includes('/bff/ledger/analytics/sales')) reads += 1;
+  });
+  await page.goto('/properties/statistics?from=0000-01-01&to=9999-12-31');
+  const refused = page.getByRole('region', { name: "This range can't be shown" });
+  await expect(refused.getByText('Up to 365 days at a time')).toBeVisible(COLD);
+  expect(reads).toBe(0);
+  await refused.getByRole('button', { name: 'Reset filters' }).click();
+  await expect(page).not.toHaveURL(/from=/);
+  await expect(transactions(page).getByRole('img', { name: 'Transactions made, all cities' })).toBeVisible(COLD);
+});
+
+test('a historical range is complete, not stale', async ({ page }) => {
+  await page.goto('/properties/statistics?city=Rome&from=2026-09-01&to=2026-09-30');
+  await expect(transactions(page).getByRole('img', { name: 'Transactions made, Rome' })).toBeVisible(COLD);
+  await expect(transactions(page).getByText(/Data is .* old/)).toHaveCount(0);
+});
+
+test('a range reaching today, with old data, is stale in human units', async ({ page }) => {
+  await page.goto('/properties/statistics');
+  await expect(transactions(page).getByText(/Data is \d+ (h|d) old/)).toBeVisible(COLD);
+});
