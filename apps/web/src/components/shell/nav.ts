@@ -27,10 +27,14 @@ const PROPERTIES: NavItem[] = [
   { label: 'Search', href: ROUTES.propertiesSearch, icon: 'search' },
 
   // F-404, F-405, F-406
+  { label: 'Live Listings', href: '/properties/listings', icon: 'radio', live: true },
+  { label: 'Live Minting', href: '/properties/mints', icon: 'sparkles', live: true },
+  { label: 'Transactions', href: '/properties/transactions', icon: 'receipt' },
 
   // F-407, F-408, F-409
 
   // F-410, F-412
+  { label: 'Appraiser', href: '/tools/appraiser', icon: 'calculator' },
 ];
 
 const LEADERBOARDS: NavItem[] = [
