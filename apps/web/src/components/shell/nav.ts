@@ -23,6 +23,7 @@ const USERS: NavItem[] = [
 
 const PROPERTIES: NavItem[] = [
   // F-401 Overview (first in the PRD order)
+  { label: 'Overview', href: '/properties/overview', icon: 'layers' },
 
   { label: 'Search', href: ROUTES.propertiesSearch, icon: 'search' },
 
@@ -32,6 +33,8 @@ const PROPERTIES: NavItem[] = [
   { label: 'Transactions', href: '/properties/transactions', icon: 'receipt' },
 
   // F-407, F-408, F-409
+  { label: 'Statistics', href: '/properties/statistics', icon: 'chart-line' },
+  { label: 'Mint Analytics', href: '/properties/mint-analytics', icon: 'hammer' },
 
   // F-410, F-412
   { label: 'Appraiser', href: '/tools/appraiser', icon: 'calculator' },

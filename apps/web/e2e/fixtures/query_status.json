@@ -1,0 +1,109 @@
+{
+  "columns": [
+    {
+      "name": "city",
+      "type": "string"
+    },
+    {
+      "name": "api_status",
+      "type": "string"
+    },
+    {
+      "name": "properties",
+      "type": "number"
+    }
+  ],
+  "rows": [
+    [
+      "Las Vegas",
+      "Owned",
+      41200
+    ],
+    [
+      "Las Vegas",
+      "For sale",
+      3100
+    ],
+    [
+      "Las Vegas",
+      "Locked",
+      900
+    ],
+    [
+      "Las Vegas",
+      "Unlocked",
+      52000
+    ],
+    [
+      "Las Vegas",
+      "On Review",
+      40
+    ],
+    [
+      "Las Vegas",
+      "",
+      12
+    ],
+    [
+      "Los Angeles",
+      "Owned",
+      88000
+    ],
+    [
+      "Los Angeles",
+      "For sale",
+      6100
+    ],
+    [
+      "Los Angeles",
+      "Locked",
+      2300
+    ],
+    [
+      "Los Angeles",
+      "Unlocked",
+      140000
+    ],
+    [
+      "Los Angeles",
+      "",
+      30
+    ],
+    [
+      "Rome",
+      "Owned",
+      30500
+    ],
+    [
+      "Rome",
+      "For sale",
+      2400
+    ],
+    [
+      "Rome",
+      "Locked",
+      700
+    ],
+    [
+      "Rome",
+      "Unlocked",
+      61000
+    ],
+    [
+      "Rome",
+      "On Review",
+      15
+    ]
+  ],
+  "stats": {
+    "rows": 16,
+    "elapsed_ms": 180,
+    "rows_read": 4900000,
+    "bytes_read": 40000000,
+    "truncated": false,
+    "table": "properties",
+    "dedup": "exact"
+  },
+  "sql": "-- e2e fixture",
+  "chain": "upland"
+}
