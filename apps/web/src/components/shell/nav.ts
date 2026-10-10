@@ -8,6 +8,8 @@
  */
 import type { NavGroup, NavItem } from '@embers/ui';
 
+import { USER_ROUTES } from '@/lib/users';
+
 export const ROUTES = {
   home: '/',
   propertiesSearch: '/properties/search',
@@ -15,10 +17,12 @@ export const ROUTES = {
 
 const HOME: NavItem[] = [
   // F-190
+  { label: 'Home', href: ROUTES.home, icon: 'house' },
 ];
 
 const USERS: NavItem[] = [
-  // F-201, F-202
+  // F-201, F-202 (profiles live under /users/<username>)
+  { label: 'User Search', href: USER_ROUTES.search, icon: 'user' },
 ];
 
 const PROPERTIES: NavItem[] = [
@@ -35,6 +39,9 @@ const PROPERTIES: NavItem[] = [
 
 const LEADERBOARDS: NavItem[] = [
   // F-1606
+  { label: 'Users', href: USER_ROUTES.leaderboardUsers, icon: 'users' },
+  { label: 'Properties', href: USER_ROUTES.leaderboardProperties, icon: 'building-2' },
+  { label: 'Upland', href: USER_ROUTES.leaderboardUpland, icon: 'trophy' },
 ];
 
 const COMMUNITY: NavItem[] = [
