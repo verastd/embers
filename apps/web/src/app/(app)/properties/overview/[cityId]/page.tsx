@@ -13,7 +13,10 @@
  *   list (`/neighborhoods?city=`) for names and area. If only the list
  *   fails, the table still shows with a partial banner and its own Retry.
  *
- * Not shown, because no ledger route has them: status counts, the
+ * - Property status tiles: the city's properties by Upland status, from
+ *   the property dimension (`property-status.tsx`).
+ *
+ * Not shown, because no ledger route has them: the
  * collection table (no property-to-collection link), and the neighborhood
  * map (no map component in the design system yet; MapLibre would be a new
  * dependency).
@@ -26,6 +29,7 @@ import type { Listing, Neighborhood, QueryResult as LedgerQueryResult } from '@e
 import { Suspense, useMemo } from 'react';
 
 import { DataThrough, readWindow, useCityDays, windowPhrase, WindowChips } from '@/components/data/market-window';
+import { StatusTiles, useStatusCounts } from '@/components/data/property-status';
 import { Region } from '@/components/data/Region';
 import { formatDay, formatInt, formatMultiple, formatUpx, formatUsd, NONE } from '@/lib/format';
 import { useLedgerQuery } from '@/lib/hooks';
@@ -71,6 +75,7 @@ function CityOverview() {
   const days = useCityDays(win, city ?? undefined);
   const stats = useMemo(() => cityStats(days.data ?? []).find((c) => c.city === city) ?? null, [days.data, city]);
   const latest = latestDay(days.data ?? []);
+  const status = useStatusCounts(city ?? undefined, city !== null);
 
   const floorUpx = useLedgerQuery<Listing | null>(city ? queryKey('/listings#floor-upx', { city }) : null, async (c, signal) => {
     const page = await c.listings.list({ city: city!, open: true, book: 'upx', sort: 'ask_upx', order: 'asc', min_ask: 1, limit: 1 }, { signal });
@@ -154,6 +159,10 @@ function CityOverview() {
             </TileRow>
           </DataState>
         )}
+      </Block>
+
+      <Block id="status" title="Property status" note={`Every ${city} property by its Upland status.`}>
+        <StatusTiles query={status} city={city} />
       </Block>
 
       <Block id="floor" title="Floor" note="Lowest open ask in each currency, among listings of the last 180 days that are still live.">

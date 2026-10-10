@@ -547,3 +547,66 @@ export function cityFromSegment(segment: string | undefined): string | null {
   }
   return name.length > 0 && name.length <= 64 ? name : null;
 }
+
+/* --- Upland status counts (F-401, F-402) ---------------------------------------------- */
+
+/** Upland's own property statuses (Developers API), in display order. */
+export const UPLAND_STATUSES = ['Owned', 'For sale', 'Locked', 'Unlocked', 'On Review'] as const;
+export type UplandStatus = (typeof UPLAND_STATUSES)[number];
+
+export interface StatusCounts {
+  city: string;
+  total: number;
+  byStatus: Record<UplandStatus, number>;
+  /** Properties whose status the ledger does not have (empty or unrecognised). */
+  notReported: number;
+}
+
+/**
+ * Property counts per Upland status from the property dimension (`POST
+ * /analytics/query`, source `properties`, no range needed), per city, or
+ * for one city.
+ */
+export function statusCountsSpec(city?: string): QuerySpec {
+  return {
+    source: 'properties',
+    ...(city ? { filters: [{ field: 'city', op: 'eq', value: city }] } : {}),
+    dimensions: [{ field: 'city' }, { field: 'api_status' }],
+    measures: [{ fn: 'count', alias: 'properties' }],
+    limit: 10_000,
+  };
+}
+
+const STATUS_BY_KEY = new Map<string, UplandStatus>(UPLAND_STATUSES.map((s) => [s.toLowerCase(), s]));
+
+function emptyCounts(city: string): StatusCounts {
+  return { city, total: 0, byStatus: { Owned: 0, 'For sale': 0, Locked: 0, Unlocked: 0, 'On Review': 0 }, notReported: 0 };
+}
+
+/** Per-city counts, ordered by total properties (then name); rows without a city are left out. */
+export function statusCounts(result: Pick<AnalyticsResult, 'columns' | 'rows'>): StatusCounts[] {
+  const byCity = new Map<string, StatusCounts>();
+  for (const r of records(result)) {
+    const city = asText(r.city);
+    if (!city) continue;
+    const n = asNumber(r.properties);
+    const c = byCity.get(city) ?? emptyCounts(city);
+    const status = STATUS_BY_KEY.get(asText(r.api_status).trim().toLowerCase());
+    if (status) c.byStatus[status] += n;
+    else c.notReported += n;
+    c.total += n;
+    byCity.set(city, c);
+  }
+  return [...byCity.values()].sort((a, b) => b.total - a.total || a.city.localeCompare(b.city));
+}
+
+/** Every city's counts summed. */
+export function totalStatusCounts(rows: readonly StatusCounts[]): StatusCounts {
+  const t = emptyCounts('All cities');
+  for (const c of rows) {
+    t.total += c.total;
+    t.notReported += c.notReported;
+    for (const s of UPLAND_STATUSES) t.byStatus[s] += c.byStatus[s];
+  }
+  return t;
+}

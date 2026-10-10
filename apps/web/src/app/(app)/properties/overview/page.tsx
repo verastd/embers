@@ -5,9 +5,10 @@
  * market layer (`/market/cities`): what traded, was listed and was minted in
  * each city over the window, with the latest daily medians.
  *
- * Not shown, because no ledger route has them: Upland's property counts by
- * status (total, unminted, owned, for sale, locked) and per-city floor prices
- * on this table (the city page shows the floor). Medians are the most recent
+ * Property counts by Upland status (owned, for sale, locked, unminted, on
+ * review) come from the property dimension (`property-status.tsx`), in
+ * tiles and a per-city table. Per-city floor prices are on the city page
+ * only (two `/listings` reads per city). Medians are the most recent
  * day's, named with that day: a window median cannot be rebuilt from daily
  * ones.
  *
@@ -23,6 +24,7 @@ import type { Column } from '@embers/ui';
 import { Suspense, useMemo } from 'react';
 
 import { DataThrough, readWindow, useCityDays, windowPhrase, WindowChips } from '@/components/data/market-window';
+import { StatusByCity, StatusTiles, useStatusCounts } from '@/components/data/property-status';
 import { Region } from '@/components/data/Region';
 import { readEnum } from '@/lib/filters';
 import { formatDay, formatInt, formatMultiple, formatUpx, formatUsd, NONE } from '@/lib/format';
@@ -82,6 +84,7 @@ function PropertiesOverview() {
   const order = readEnum(params, 'order', ['asc', 'desc'] as const) ?? (sortKey === 'city' ? 'asc' : 'desc');
 
   const days = useCityDays(win);
+  const status = useStatusCounts();
   const stats = useMemo(() => cityStats(days.data ?? []), [days.data]);
   const rows = useMemo(() => sortCities(stats, sortKey, order), [stats, sortKey, order]);
   const totals = marketTotals(stats);
@@ -110,6 +113,10 @@ function PropertiesOverview() {
         </DataState>
       </Block>
 
+      <Block id="status" title="Property status" note="Every Upland property by its Upland status, all cities.">
+        <StatusTiles query={status} />
+      </Block>
+
       <Block id="cities" title="Cities" note="Select a city for its own overview. Medians are from the latest day in the window that had one; hover a value for its day.">
         <Region
           query={days}
@@ -132,6 +139,8 @@ function PropertiesOverview() {
           )}
         </Region>
       </Block>
+
+      <StatusByCity query={status} />
     </>
   );
 }

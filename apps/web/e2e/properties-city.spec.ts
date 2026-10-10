@@ -72,3 +72,11 @@ test('when only the neighborhood list fails, the table stays with a partial bann
   await expect(banner).toBeVisible();
   await expect(banner.getByRole('button', { name: 'Retry' })).toBeVisible();
 });
+
+test("the city's Upland status counts", async ({ page }) => {
+  await page.goto('/properties/overview/Las%20Vegas');
+  const tiles = page.getByRole('region', { name: 'Property status', exact: true });
+  await expect(tiles.getByText('97,252', { exact: true })).toBeVisible(COLD);
+  await expect(tiles.getByText('52,000', { exact: true })).toBeVisible();
+  await expect(tiles.getByText('3,100', { exact: true })).toBeVisible();
+});

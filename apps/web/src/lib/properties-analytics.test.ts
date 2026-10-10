@@ -31,6 +31,10 @@ import {
   records,
   salesSeriesByDay,
   sortCities,
+  statusCounts,
+  statusCountsSpec,
+  totalStatusCounts,
+  UPLAND_STATUSES,
   topMinters,
   topMintersSpec,
 } from './properties-analytics';
@@ -307,5 +311,36 @@ describe('review fixes (#10)', () => {
     const old = [day('2026-08-01', 'X'), day('2026-08-01', 'Y'), day('2026-07-31', 'X')];
     expect(onlyLatestDay(old).map((r) => r.city)).toEqual(['X', 'Y']);
     expect(marketStaleMinutes(latestDay(old), NOW)).toBeGreaterThan(60 * 24 * 60);
+  });
+});
+
+describe('Upland status counts', () => {
+  it('asks the property dimension by city and status, optionally for one city', () => {
+    expect(statusCountsSpec()).toEqual({ source: 'properties', dimensions: [{ field: 'city' }, { field: 'api_status' }], measures: [{ fn: 'count', alias: 'properties' }], limit: 10_000 });
+    expect(statusCountsSpec('Rome').filters).toEqual([{ field: 'city', op: 'eq', value: 'Rome' }]);
+  });
+
+  it('counts each status per city, keeps unknown statuses apart, and totals', () => {
+    const r = result(
+      ['city', 'api_status', 'properties'],
+      [
+        ['Rome', 'Owned', 100],
+        ['Rome', 'for sale', 20],
+        ['Rome', 'Unlocked', 300],
+        ['Rome', '', 5],
+        ['Detroit', 'Locked', 50],
+        ['Detroit', 'On Review', 2],
+        ['Detroit', 'Weird', 1],
+        ['', 'Owned', 9],
+      ],
+    );
+    const rows = statusCounts(r);
+    expect(rows.map((c) => c.city)).toEqual(['Rome', 'Detroit']);
+    expect(rows[0]).toEqual({ city: 'Rome', total: 425, byStatus: { Owned: 100, 'For sale': 20, Locked: 0, Unlocked: 300, 'On Review': 0 }, notReported: 5 });
+    expect(rows[1]!.notReported).toBe(1);
+    const t = totalStatusCounts(rows);
+    expect(t).toMatchObject({ city: 'All cities', total: 478, notReported: 6 });
+    expect(t.byStatus).toEqual({ Owned: 100, 'For sale': 20, Locked: 50, Unlocked: 300, 'On Review': 2 });
+    expect(UPLAND_STATUSES).toHaveLength(5);
   });
 });

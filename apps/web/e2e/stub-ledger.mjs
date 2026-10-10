@@ -31,6 +31,7 @@ const readJson = (file) => JSON.parse(readFileSync(file, 'utf8'));
 function queryAnswer(spec) {
   const dims = (spec.dimensions ?? []).map((d) => d.field);
   if (spec.source === 'events') return readJson(path.join(FIXTURES, 'query_minters.json'));
+  if (spec.source === 'properties' && dims.includes('api_status')) return readJson(path.join(FIXTURES, 'query_status.json'));
   if (spec.source === 'properties' && dims.includes('mint_kind')) return readJson(path.join(FIXTURES, 'query_mints.json'));
   if (spec.source === 'properties') return readJson(path.join(FIXTURES, 'query_neighborhoods.json'));
   return readJson(path.join(EX, 'POST_analytics_query.json'));
