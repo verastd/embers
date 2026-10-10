@@ -131,10 +131,13 @@ export function toCsv(rows: readonly TxRow[]): string {
 export const PERIODS = { all: null, '7d': 7, '30d': 30, '90d': 90 } as const;
 export type Period = keyof typeof PERIODS;
 
-/** The `after` instant for a period: the start of the UTC day `days` back, so the cache key is stable all day. */
+/**
+ * The `after` instant for a period: midnight UTC `days - 1` days back, so "last 7 days" is today plus the
+ * 6 UTC days before it (`after` is inclusive), and the cache key is stable all day.
+ */
 export function periodStart(period: Period, now: number = Date.now()): string | undefined {
   const days = PERIODS[period];
   if (days === null) return undefined;
-  const d = new Date(now - days * 86_400_000);
+  const d = new Date(now - (days - 1) * 86_400_000);
   return `${d.toISOString().slice(0, 10)}T00:00:00Z`;
 }

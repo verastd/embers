@@ -138,7 +138,8 @@ function Appraiser() {
   const mint = p ? p.mint_price_upx || p.upland_api?.mint_price_upx || 0 : 0;
   const city = p ? p.city || p.upland_api?.city || '' : '';
   const neighborhood = p ? p.neighborhood || p.upland_api?.neighborhood || '' : '';
-  const after = `${utcDayOffset(COMPARABLE_DAYS)}T00:00:00Z`;
+  // 90 UTC calendar days including today: `after` is inclusive, so start COMPARABLE_DAYS - 1 days back.
+  const after = `${utcDayOffset(COMPARABLE_DAYS - 1)}T00:00:00Z`;
 
   // Sales read so far per level, while the window is paged in (progress on the button and in the estimate).
   const [reading, setReading] = useState<{ key: string; read: number } | null>(null);

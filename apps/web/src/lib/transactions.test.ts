@@ -88,9 +88,18 @@ describe('toCsv', () => {
 
 describe('periodStart', () => {
   const now = Date.UTC(2026, 9, 10, 15, 30);
-  it('is the start of the UTC day N days back, or nothing for all time', () => {
+  it('covers exactly N UTC calendar days including today, or nothing for all time', () => {
     expect(periodStart('all', now)).toBeUndefined();
-    expect(periodStart('7d', now)).toBe('2026-10-03T00:00:00Z');
-    expect(periodStart('90d', now)).toBe('2026-07-12T00:00:00Z');
+    // Oct 4..Oct 10 is 7 dates; Oct 3 would make 8.
+    expect(periodStart('7d', now)).toBe('2026-10-04T00:00:00Z');
+    expect(periodStart('30d', now)).toBe('2026-09-11T00:00:00Z');
+    expect(periodStart('90d', now)).toBe('2026-07-13T00:00:00Z');
+    for (const [period, days] of [['7d', 7], ['30d', 30], ['90d', 90]] as const) {
+      const start = Date.parse(periodStart(period, now) ?? '');
+      expect((Date.UTC(2026, 9, 10) - start) / 86_400_000 + 1).toBe(days);
+    }
+  });
+  it('is stable through the day', () => {
+    expect(periodStart('7d', Date.UTC(2026, 9, 10, 0, 0, 1))).toBe(periodStart('7d', Date.UTC(2026, 9, 10, 23, 59, 59)));
   });
 });
