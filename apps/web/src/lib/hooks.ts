@@ -52,7 +52,8 @@ export interface QueryResult<T> extends QuerySnapshot<T> {
   refetch: () => Promise<void>;
 }
 
-function runRead<T>(fetcher: Fetcher<T>, heavy: boolean, signal: AbortSignal): Promise<T> {
+/** One ledger read: the shared client, the heavy slot when asked, errors as LedgerError. */
+export function runRead<T>(fetcher: Fetcher<T>, heavy: boolean, signal: AbortSignal): Promise<T> {
   const client = ledgerClient();
   const read = (): Promise<T> => fetcher(client, signal);
   return (heavy ? heavySlot.run(read, signal) : read()).catch((err: unknown) => {
