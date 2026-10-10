@@ -1,7 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = 3410;
-const STUB = 4010;
+/** Overridable so several worktrees can run e2e at once. */
+const PORT = Number(process.env.E2E_PORT ?? 3410);
+const STUB = Number(process.env.E2E_STUB_PORT ?? 4010);
 /** Test-only secret; also used by e2e/auth.spec.ts to seal sessions. */
 export const E2E_SESSION_SECRET = 'e2e-session-secret-0123456789abcdef0123';
 
