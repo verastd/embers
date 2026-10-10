@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { BACKOFF_MS, INITIAL_LIVE, MAX_ATTEMPTS, arrivedKeys, backoffMs, liveStatus, pollDue, pollFailed, pollSucceeded, retryNow, secondsUntil, setPaused, staleMinutes } from './live';
+import { BACKOFF_MS, HIGHLIGHT_MS, INITIAL_LIVE, MAX_ATTEMPTS, arrivalsAbove, backoffMs, expireFresh, forFeed, liveStatus, newTracker, nextExpiry, observeRows, pollDue, pollFailed, pollSucceeded, retryNow, secondsUntil, setPaused, staleMinutes } from './live';
+import type { ArrivalTracker } from './live';
 
 const T0 = Date.UTC(2026, 9, 10, 12, 0, 0);
 const MIN = 60_000;
@@ -76,21 +77,108 @@ describe('the live poll state machine', () => {
   });
 });
 
-describe('arrivedKeys', () => {
-  it('flags nothing on the first load', () => {
-    expect(arrivedKeys(new Set(), ['a', 'b'])).toEqual([]);
+describe('a new feed restarts the poller (review: offline must not stick to a new filter)', () => {
+  it('offline, then a filter change, then the new feed goes live again', () => {
+    let s = forFeed(INITIAL_LIVE, 'listings?a');
+    s = pollSucceeded(s, T0, MIN);
+    for (let i = 0; i < MAX_ATTEMPTS; i++) s = pollFailed(s, T0);
+    expect(s.phase).toBe('offline');
+    expect(pollDue(s, T0 + 10 * MIN, false, false)).toBe(false);
+
+    const next = forFeed(s, 'listings?b');
+    expect(next).toMatchObject({ feed: 'listings?b', phase: 'connecting', attempt: 0, lastOkAt: null, nextAt: null });
+    expect(liveStatus(next, false, false)).toBe('connecting');
+    // The new feed's first answer counts as a successful poll: live, polling again.
+    const live = pollSucceeded(next, T0 + MIN, MIN);
+    expect(liveStatus(live, false, false)).toBe('live');
+    expect(pollDue(live, T0 + 2 * MIN, false, false)).toBe(true);
   });
 
-  it('flags unseen rows above the first seen one', () => {
-    expect(arrivedKeys(new Set(['a', 'b']), ['x', 'y', 'a', 'b'])).toEqual(['x', 'y']);
+  it('keeps the same state for the same feed, and carries the user pause over', () => {
+    const s = pollSucceeded(forFeed(INITIAL_LIVE, 'a'), T0, MIN);
+    expect(forFeed(s, 'a')).toBe(s);
+    const paused = setPaused(s, true, T0);
+    expect(forFeed(paused, 'b').userPaused).toBe(true);
+  });
+});
+
+describe('observeRows: arrivals', () => {
+  const keysOf = (t: ArrivalTracker) => [...t.fresh.keys()];
+  function first(keys: string[], feed = 'f'): ArrivalTracker {
+    return observeRows(newTracker(feed), feed, keys, 1, T0).tracker;
+  }
+
+  it('flags nothing on the first answer, or on a new filter', () => {
+    const r = observeRows(newTracker('f'), 'f', ['a', 'b'], 1, T0);
+    expect(r.arrived).toEqual([]);
+    const other = observeRows(r.tracker, 'g', ['x', 'y'], 1, T0);
+    expect(other.arrived).toEqual([]);
+    expect(other.tracker.feed).toBe('g');
   });
 
-  it('does not flag rows appended below (Load more)', () => {
-    expect(arrivedKeys(new Set(['a', 'b']), ['a', 'b', 'c', 'd'])).toEqual([]);
-    expect(arrivedKeys(new Set(['a', 'b']), ['x', 'a', 'b', 'c'])).toEqual(['x']);
+  it('flags new rows at the top (newest first)', () => {
+    expect(observeRows(first(['a', 'b']), 'f', ['x', 'a', 'b'], 1, T0).arrived).toEqual(['x']);
   });
 
-  it('flags everything unseen when no seen row remains', () => {
-    expect(arrivedKeys(new Set(['a']), ['x', 'y'])).toEqual(['x', 'y']);
+  it('flags a new row at the END under an ascending sort', () => {
+    const t = first(['10', '20', '30']);
+    const r = observeRows(t, 'f', ['10', '20', '30', '40'], 1, T0 + 1);
+    expect(r.arrived).toEqual(['40']);
+    expect(keysOf(r.tracker)).toEqual(['40']);
+  });
+
+  it('flags a new row in the MIDDLE (price or markup sort)', () => {
+    const r = observeRows(first(['a', 'b', 'c']), 'f', ['a', 'mid', 'b', 'c'], 1, T0);
+    expect(r.arrived).toEqual(['mid']);
+  });
+
+  it('does not flag rows Load more appended, but does flag arrivals in the refreshed part', () => {
+    const t = first(['a', 'b']);
+    expect(observeRows(t, 'f', ['a', 'b', 'c', 'd'], 2, T0).arrived).toEqual([]);
+    expect(observeRows(t, 'f', ['x', 'a', 'c', 'd'], 2, T0).arrived).toEqual(['x']);
+  });
+
+  it('never re-flags a key seen on any loaded page', () => {
+    let t = first(['a', 'b']);
+    t = observeRows(t, 'f', ['a', 'b', 'c'], 2, T0).tracker; // Load more brought c
+    expect(observeRows(t, 'f', ['c', 'a', 'b'], 2, T0).arrived).toEqual([]);
+  });
+});
+
+describe('the 2 s highlight (review: it must clear even across rerenders)', () => {
+  it('ends 2 s after arrival; re-observing the same answer neither extends nor drops it', () => {
+    const t0 = first2(['a', 'b']);
+    const arrived = observeRows(t0, 'f', ['x', 'a', 'b'], 1, T0);
+    expect(nextExpiry(arrived.tracker.fresh)).toBe(T0 + HIGHLIGHT_MS);
+    // A rerender re-observing the same rows 500 ms later: no new arrival, same end time.
+    const again = observeRows(arrived.tracker, 'f', ['x', 'a', 'b'], 1, T0 + 500);
+    expect(again.arrived).toEqual([]);
+    expect(nextExpiry(again.tracker.fresh)).toBe(T0 + HIGHLIGHT_MS);
+    expect(expireFresh(again.tracker.fresh, T0 + HIGHLIGHT_MS - 1).has('x')).toBe(true);
+    expect(expireFresh(again.tracker.fresh, T0 + HIGHLIGHT_MS).size).toBe(0);
+    expect(nextExpiry(new Map())).toBeNull();
+  });
+
+  it('keeps separate end times per arrival batch', () => {
+    let t = first2(['a']);
+    t = observeRows(t, 'f', ['x', 'a'], 1, T0).tracker;
+    t = observeRows(t, 'f', ['y', 'x', 'a'], 1, T0 + 1500).tracker;
+    expect(nextExpiry(t.fresh)).toBe(T0 + HIGHLIGHT_MS);
+    const later = expireFresh(t.fresh, T0 + HIGHLIGHT_MS);
+    expect([...later.keys()]).toEqual(['y']);
+    expect(nextExpiry(later)).toBe(T0 + 1500 + HIGHLIGHT_MS);
+  });
+
+  function first2(keys: string[]): ArrivalTracker {
+    return observeRows(newTracker('f'), 'f', keys, 1, T0 - 10_000).tracker;
+  }
+});
+
+describe('arrivalsAbove ("N new" only for rows above the viewport)', () => {
+  it('counts only rendered rows whose top is above 0', () => {
+    const tops = [-300, -10, 0, 250];
+    expect(arrivalsAbove([0, 1, 2, 3], (i) => tops[i] ?? null)).toBe(2);
+    expect(arrivalsAbove([3], (i) => tops[i] ?? null)).toBe(0);
+    expect(arrivalsAbove([9], () => null)).toBe(0);
   });
 });

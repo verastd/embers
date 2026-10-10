@@ -116,7 +116,7 @@ export default function LiveMintingPage() {
   const { refetch: refetchTop } = top;
   const { refetch: refetchLatest } = latest;
   const retryFirst = useCallback(() => Promise.all([refetchKpis(), refetchTop(), refetchLatest()]), [refetchKpis, refetchTop, refetchLatest]);
-  const live = useLivePoll({ intervalMs: POLL_MS, poll, hasData: latest.data !== undefined, firstError, retryFirst });
+  const live = useLivePoll({ feedKey: 'mints', intervalMs: POLL_MS, poll, hasData: latest.data !== undefined, firstError, retryFirst });
 
   const anchor = useRef<HTMLDivElement>(null);
   const fresh = useNewRows(mints, mintKey, 'mints', anchor);

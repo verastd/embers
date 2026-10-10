@@ -115,6 +115,30 @@ test('with a mint price: the mint-price model from neighborhood comparables, the
   await expect(result(page).getByText('22,000 UPX')).toBeVisible();
 });
 
+test('reads every page of the comparable window, with progress, and finds a close match on page 2', async ({ page }) => {
+  // Page 1: 1,000 sales with no known mint price (no use as comparables). Page 2: three real comparables.
+  const far = Array.from({ length: 1000 }, (_, i) => ({ ...sale(String(200000000000000 + i), 10_000, 90_000), mint_price_upx: 0, price_to_mint: 0 }));
+  const near = [sale('100000000000001', 10_000, 15_000), sale('100000000000002', 10_000, 20_000), sale('100000000000003', 10_000, 25_000)];
+  const offsets: string[] = [];
+  let release: () => void = () => undefined;
+  const secondPage = new Promise<void>((r) => (release = r));
+  await page.route(`**/bff/ledger/properties/${ID}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(PROPERTY) }));
+  await page.route('**/bff/ledger/sales?*', async (route) => {
+    const q = new URL(route.request().url()).searchParams;
+    offsets.push(q.get('offset') ?? '0');
+    expect(q.get('limit')).toBe('1000');
+    if ((q.get('offset') ?? '0') === '0') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: far, count: 1000, limit: 1000, offset: 0, has_more: true }) });
+    await secondPage;
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: near, count: 3, limit: 1000, offset: 1000, has_more: false }) });
+  });
+  await page.goto(`/tools/appraiser?id=${ID}`);
+  await expect(result(page).getByText('Reading sales… 1,000')).toBeVisible(FIRST);
+  release();
+  await expect(result(page).getByText('Mint-price model, 3 neighborhood comparables')).toBeVisible();
+  await expect(result(page).getByText('20,000 UPX').first()).toBeVisible();
+  expect(offsets).toEqual(['0', '1000']);
+});
+
 test('Slow 3G: a loading indicator appears within 100 ms of Appraise', async ({ page }) => {
   await page.goto('/tools/appraiser');
   const box = page.getByRole('combobox', { name: 'Property' });

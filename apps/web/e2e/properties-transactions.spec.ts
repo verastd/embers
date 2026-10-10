@@ -28,9 +28,13 @@ const results = (page: Page) => page.getByRole('region', { name: 'Transactions' 
  */
 async function completeSources(page: Page): Promise<void> {
   await page.route(/\/bff\/ledger\/(sales|offers)\?/, async (route) => {
-    const res = await route.fetch();
-    const body = (await res.json()) as Record<string, unknown>;
-    return route.fulfill({ response: res, json: { ...body, has_more: false } });
+    try {
+      const res = await route.fetch();
+      const body = (await res.json()) as Record<string, unknown>;
+      await route.fulfill({ response: res, json: { ...body, has_more: false } });
+    } catch {
+      // The page cancelled this read (a newer filter replaced it): nothing to answer.
+    }
   });
 }
 const empty = (limit: number) => JSON.stringify({ data: [], count: 0, limit, offset: 0, has_more: false });

@@ -19,13 +19,13 @@
 import { useSearchParams } from 'next/navigation';
 import { Badge, Block, Button, Card, DataTable, FactList, FilterBar, FilterField, NumberField, PageHeader, SearchableSelect, Skeleton, StatusBanner, ToastStack } from '@embers/ui';
 import type { Column, SSOption, SearchableSelectStatus, ToastStackItem } from '@embers/ui';
-import type { Listing, PropertyDetail, Sale, SearchResult, UpxUsd } from '@embers/ledger';
+import type { Listing, PropertyDetail, SearchResult, UpxUsd } from '@embers/ledger';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { filterBarState } from '@/components/data/filterbar';
 import { Region } from '@/components/data/Region';
-import { appraise, belowFloor, COMPARABLE_DAYS, needsCityComparables, withExtra } from '@/lib/appraise';
-import type { Appraisal, Comparable } from '@/lib/appraise';
+import { appraise, belowFloor, COMPARABLE_DAYS, needsCityComparables, readSalesWindow, SALES_CAP, withExtra } from '@/lib/appraise';
+import type { Appraisal, Comparable, SalesWindow } from '@/lib/appraise';
 import { isPropertyId } from '@/lib/filters';
 import { formatDay, formatInt, formatMultiple, formatUpx, formatUsd, NONE, placeLabel, utcDayOffset } from '@/lib/format';
 import { useDebouncedValue, useLedgerQuery } from '@/lib/hooks';
@@ -140,23 +140,36 @@ function Appraiser() {
   const neighborhood = p ? p.neighborhood || p.upland_api?.neighborhood || '' : '';
   const after = `${utcDayOffset(COMPARABLE_DAYS)}T00:00:00Z`;
 
-  const nReq = { city: city || undefined, neighborhood, after, sort: 'timestamp' as const, order: 'desc' as const, limit: 500 };
-  const nSales = useLedgerQuery<OffsetPage<Sale>>(p && mint > 0 && neighborhood ? queryKey('/sales', nReq) : null, (c, signal) => c.sales.list(nReq, { signal }));
-  const wantCity = !!p && mint > 0 && !!city && (!neighborhood || (nSales.data !== undefined && needsCityComparables({ propertyId: id, mintPriceUpx: mint, neighborhoodSales: nSales.data.data })));
-  const cReq = { city, after, sort: 'timestamp' as const, order: 'desc' as const, limit: 1000 };
-  const cSales = useLedgerQuery<OffsetPage<Sale>>(wantCity ? queryKey('/sales', cReq) : null, (c, signal) => c.sales.list(cReq, { signal }));
+  // Sales read so far per level, while the window is paged in (progress on the button and in the estimate).
+  const [reading, setReading] = useState<{ key: string; read: number } | null>(null);
+  const nReq = { city: city || undefined, neighborhood, after, sort: 'timestamp' as const, order: 'desc' as const };
+  const nKey = queryKey('/sales#window', nReq);
+  const nSales = useLedgerQuery<SalesWindow>(p && mint > 0 && neighborhood ? nKey : null, (c, signal) =>
+    readSalesWindow((page) => c.sales.list({ ...nReq, ...page }, { signal }), (read) => setReading({ key: nKey, read })),
+  );
+  const wantCity = !!p && mint > 0 && !!city && (!neighborhood || (nSales.data !== undefined && needsCityComparables({ propertyId: id, mintPriceUpx: mint, neighborhoodSales: nSales.data.sales })));
+  const cReq = { city, after, sort: 'timestamp' as const, order: 'desc' as const };
+  const cKey = queryKey('/sales#window', cReq);
+  const cSales = useLedgerQuery<SalesWindow>(wantCity ? cKey : null, (c, signal) =>
+    readSalesWindow((page) => c.sales.list({ ...cReq, ...page }, { signal }), (read) => setReading({ key: cKey, read })),
+  );
   const rate = useLedgerQuery<UpxUsd>(p ? queryKey('/market/upx-usd', { limit: 7 }) : null, (c, signal) => c.market.upxUsd({ limit: 7 }, { signal }), { heavy: true });
   const floorReq = { open: true, city: city || undefined, neighborhood: neighborhood || undefined, book: 'upx' as const, sort: 'ask_upx' as const, order: 'asc' as const, limit: 1 };
   const floor = useLedgerQuery<OffsetPage<Listing>>(p && city ? queryKey('/listings', floorReq) : null, (c, signal) => c.listings.list(floorReq, { signal }));
 
   const compsPending = (mint > 0 && neighborhood !== '' && nSales.data === undefined) || (wantCity && cSales.data === undefined);
   const compsQuery = nSales.view === 'error' ? nSales : cSales.view === 'error' ? cSales : null;
+  const readingKey = wantCity ? cKey : nKey;
+  const readSoFar = compsPending && reading?.key === readingKey ? reading.read : null;
+  const readingLabel = readSoFar === null ? 'Reading sales…' : `Reading sales… ${formatInt(readSoFar)}`;
 
   const appraisal = useMemo<Appraisal | null>(() => {
     if (!p || compsPending) return null;
-    return appraise({ propertyId: id, mintPriceUpx: mint, lastSaleUpx: p.last_sale_upx, neighborhoodSales: nSales.data?.data ?? [], citySales: cSales.data?.data ?? [] });
+    return appraise({ propertyId: id, mintPriceUpx: mint, lastSaleUpx: p.last_sale_upx, neighborhoodSales: nSales.data?.sales ?? [], citySales: cSales.data?.sales ?? [] });
   }, [p, compsPending, id, mint, nSales.data, cSales.data]);
 
+  // The window the estimate used was cut at the cap: say so.
+  const capped = appraisal?.basis === 'mint-model' && (appraisal.level === 'neighborhood' ? nSales.data?.capped : cSales.data?.capped) === true;
   const usdPerUpx = useMemo(() => (rate.data ? (rateSummary(rateSeries(rate.data))?.usdPerUpx ?? null) : null), [rate.data]);
   const floorUpx = floor.data?.data[0]?.ask_upx ?? null;
   const [extra, setExtra] = useState<number | null>(0);
@@ -190,7 +203,7 @@ function Appraiser() {
         state={filterBarState(filters.dirty || !id, prop.view === 'loading' || compsPending, id ? 1 : 0)}
         appliedCount={id ? 1 : 0}
         applyLabel="Appraise"
-        applyPendingLabel="Appraising…"
+        applyPendingLabel={compsPending ? readingLabel : 'Appraising…'}
         onApply={async () => {
           if (!isPropertyId(filters.draft.id)) throw new Error('Pick a property first');
           filters.apply();
@@ -250,7 +263,9 @@ function Appraiser() {
                   </Region>
                 ) : appraisal === null ? (
                   <div aria-busy="true">
-                    <span className="em-sr">Finding comparable sales…</span>
+                    <p role="status" style={{ margin: '0 0 12px', font: 'var(--type-body-sm)', color: 'var(--text-secondary)' }}>
+                      {readingLabel}
+                    </p>
                     <ResultSkeleton />
                   </div>
                 ) : appraisal.basis === 'none' ? (
@@ -297,6 +312,7 @@ function Appraiser() {
                           ? `Mint price ${formatUpx(mint)} × ${formatMultiple(appraisal.ratio)}, the median price over mint of the comparables below. Excludes Upland fees.`
                           : 'No mint price or no comparable sales, so this is the property’s own last sale price. Excludes Upland fees.'}
                         {usdPerUpx !== null && ` USD at the ledger’s preferred UPX/USD rate.`}
+                        {capped && ` The ${appraisal.level} had more than ${formatInt(SALES_CAP)} sales in the last ${COMPARABLE_DAYS} days; comparables come from the newest ${formatInt(SALES_CAP)}.`}
                       </p>
                     </div>
                   </Card>

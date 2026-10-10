@@ -110,11 +110,11 @@ function LiveListings() {
   }, [params]);
   const key = queryKey('/listings', request);
   const feed = useLiveOffsetFeed<Listing>(key, (page, c, signal) => c.listings.list({ ...request, ...page }, { signal }), PAGE);
-  const live = useLivePoll({ intervalMs: POLL_MS, poll: feed.poll, hasData: feed.data !== undefined, firstError: feed.error, retryFirst: feed.refetch });
+  const live = useLivePoll({ feedKey: key, intervalMs: POLL_MS, poll: feed.poll, hasData: feed.data !== undefined, firstError: feed.error, retryFirst: feed.refetch });
 
   const anchor = useRef<HTMLDivElement>(null);
   const rowKey = useCallback(listingKey, []);
-  const fresh = useNewRows(feed.items, rowKey, key, anchor);
+  const fresh = useNewRows(feed.items, rowKey, key, anchor, feed.pageCount);
 
   const d = filters.draft;
   const book: Book = d.book === 'upx' || d.book === 'fiat' ? d.book : 'any';

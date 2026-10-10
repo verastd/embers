@@ -122,6 +122,36 @@ test('a failed poll moves the indicator to reconnecting and keeps the rows; reco
   await page.clock.fastForward('00:10');
   await expect(page.getByText('LIVE', { exact: true })).toBeVisible();
   await expect(results(page).getByText('1 NEW LISTING WAY').first()).toBeVisible();
+  // The arrival is highlighted, and the highlight ends after 2 s even though the page keeps rerendering (1 s clock).
+  const row = results(page).locator('tbody tr').filter({ hasText: '1 NEW LISTING WAY' });
+  await expect(row).toHaveAttribute('style', /em-row-in/);
+  await page.clock.fastForward('00:03');
+  await expect(row).not.toHaveAttribute('style', /em-row-in/);
+});
+
+test('offline, then a new filter: the new feed goes live again', async ({ page }) => {
+  await page.clock.install();
+  let fail = false;
+  await page.route('**/bff/ledger/listings?*', (route) =>
+    fail && !route.request().url().includes('book=upx')
+      ? route.fulfill({ status: 502, contentType: 'application/json', body: JSON.stringify({ error: { code: 'ledger_unavailable', message: 'down' } }) })
+      : route.fallback(),
+  );
+  await page.goto('/properties/listings');
+  await expect(results(page).getByText('150 SW 21ST RD').first()).toBeVisible(FIRST);
+  fail = true;
+  // The poll at 60 s, then retries after 5, 10, 20 and 30 s: five failures in a row.
+  const steps = ['01:01', '00:06', '00:11', '00:21'];
+  for (const [i, step] of steps.entries()) {
+    await page.clock.fastForward(step);
+    await expect(page.getByText(`Reconnecting (attempt ${i + 1})`)).toBeVisible();
+  }
+  await page.clock.fastForward('00:31');
+  await expect(page.getByText('Offline', { exact: true })).toBeVisible();
+  await page.getByRole('radio', { name: 'UPX', exact: true }).click();
+  await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  await expect(page).toHaveURL(/book=upx/);
+  await expect(page.getByText('LIVE', { exact: true })).toBeVisible();
 });
 
 test('Pause stops polling and shows Resume', async ({ page }) => {

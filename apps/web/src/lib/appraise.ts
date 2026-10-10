@@ -125,3 +125,40 @@ export function withExtra(upx: number, extraPercent: number): number {
 export function belowFloor(estimateUpx: number | null, floorUpx: number | null): boolean {
   return estimateUpx !== null && floorUpx !== null && floorUpx > 0 && estimateUpx < floorUpx;
 }
+
+/* --- reading the comparable window ------------------------------------------------ */
+
+/** The ledger's largest entity page. */
+export const SALES_PAGE = 1000;
+/** At most this many sales are read for one appraisal (newest first). */
+export const SALES_CAP = 10_000;
+
+export interface SalesWindow {
+  sales: Sale[];
+  /** The window held more sales than the cap; the oldest were not read. */
+  capped: boolean;
+}
+
+/**
+ * Every sale of the comparable window, page by page (newest first), up to
+ * `cap`. A single newest page would pick "closest in mint price" from an
+ * arbitrary newest subset in a busy city. `onProgress` gets the running
+ * count after each page.
+ */
+export async function readSalesWindow(
+  fetchPage: (page: { limit: number; offset: number }) => Promise<{ data: Sale[]; has_more: boolean }>,
+  onProgress?: (read: number) => void,
+  cap = SALES_CAP,
+  pageSize = SALES_PAGE,
+): Promise<SalesWindow> {
+  const sales: Sale[] = [];
+  let offset = 0;
+  while (sales.length < cap) {
+    const page = await fetchPage({ limit: Math.min(pageSize, cap - sales.length), offset });
+    sales.push(...page.data);
+    onProgress?.(sales.length);
+    if (!page.has_more || page.data.length === 0) return { sales, capped: false };
+    offset += page.data.length;
+  }
+  return { sales, capped: true };
+}

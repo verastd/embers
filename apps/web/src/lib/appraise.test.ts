@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SalePageSchema } from '@embers/ledger';
 import type { Sale } from '@embers/ledger';
 
-import { appraise, belowFloor, confidenceFor, median, needsCityComparables, pickComparables, withExtra } from './appraise';
+import { appraise, belowFloor, confidenceFor, median, needsCityComparables, pickComparables, readSalesWindow, withExtra } from './appraise';
 import { fixture } from './fixtures.test-helper';
 
 const captured = fixture('GET_sales', SalePageSchema).data;
@@ -95,5 +95,57 @@ describe('confidence, extra and floor', () => {
     expect(belowFloor(9_000, null)).toBe(false);
     expect(belowFloor(null, 10_000)).toBe(false);
     expect(belowFloor(9_000, 0)).toBe(false);
+  });
+});
+
+describe('readSalesWindow (review: read the whole 90-day window, not one page)', () => {
+  function ledger(total: number) {
+    const all = Array.from({ length: total }, (_, i) => sale(`p${i}`, 10_000, 20_000));
+    const calls: Array<{ limit: number; offset: number }> = [];
+    const fetchPage = async (p: { limit: number; offset: number }) => {
+      calls.push(p);
+      const data = all.slice(p.offset, p.offset + p.limit);
+      return { data, has_more: p.offset + data.length < total };
+    };
+    return { calls, fetchPage };
+  }
+
+  it('pages through every sale and reports progress', async () => {
+    const { calls, fetchPage } = ledger(2500);
+    const progress: number[] = [];
+    const r = await readSalesWindow(fetchPage, (n) => progress.push(n));
+    expect(r.sales).toHaveLength(2500);
+    expect(r.capped).toBe(false);
+    expect(calls).toEqual([
+      { limit: 1000, offset: 0 },
+      { limit: 1000, offset: 1000 },
+      { limit: 1000, offset: 2000 },
+    ]);
+    expect(progress).toEqual([1000, 2000, 2500]);
+  });
+
+  it('stops at the cap and says so', async () => {
+    const { calls, fetchPage } = ledger(12_000);
+    const r = await readSalesWindow(fetchPage, undefined, 2500);
+    expect(r.sales).toHaveLength(2500);
+    expect(r.capped).toBe(true);
+    expect(calls.at(-1)).toEqual({ limit: 500, offset: 2000 });
+  });
+
+  it('reads one page when that is all there is, and stops on an empty page', async () => {
+    const { calls, fetchPage } = ledger(3);
+    expect((await readSalesWindow(fetchPage)).sales).toHaveLength(3);
+    expect(calls).toHaveLength(1);
+    const empty = await readSalesWindow(async () => ({ data: [], has_more: true }));
+    expect(empty).toEqual({ sales: [], capped: false });
+  });
+
+  it('a busy city: the closest-mint comparables come from the whole window, not the newest page', async () => {
+    // 1,500 newest sales far from the target's mint, then one close match on page 2.
+    const far = Array.from({ length: 1500 }, (_, i) => sale(`far${i}`, 1_000_000, 2_000_000, '2026-10-05T00:00:00.000Z'));
+    const near = sale('near', 10_000, 15_000, '2026-08-01T00:00:00.000Z');
+    const all = [...far, near];
+    const r = await readSalesWindow(async (p) => ({ data: all.slice(p.offset, p.offset + p.limit), has_more: p.offset + p.limit < all.length }));
+    expect(pickComparables(r.sales, 'self', 10_000, 1)[0]?.property_id).toBe('near');
   });
 });
