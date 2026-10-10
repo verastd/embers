@@ -6,6 +6,8 @@
  *   EMBERS_FEEDBACK_GITHUB_TOKEN   a token that may create issues in that repo
  *   EMBERS_FEEDBACK_REPO           owner/name, e.g. verastd/embers-feedback
  *   EMBERS_TURNSTILE_SECRET        Turnstile secret (server/turnstile.ts)
+ *   NEXT_PUBLIC_TURNSTILE_SITE_KEY the widget's site key: without it the form
+ *                                  shows no check, so it could never pass one
  *
  * With any of them missing, nothing is sent and the route answers 503
  * `feedback_not_configured`: the form never says "sent" when it was not.
@@ -26,7 +28,8 @@ export function feedbackConfig(env: Record<string, string | undefined> = process
   const token = env.EMBERS_FEEDBACK_GITHUB_TOKEN?.trim();
   const m = REPO.exec(env.EMBERS_FEEDBACK_REPO?.trim() ?? '');
   const turnstileSecret = env.EMBERS_TURNSTILE_SECRET?.trim();
-  if (!token || !m || !m[1] || !m[2] || !turnstileSecret) return null;
+  const siteKey = env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim();
+  if (!token || !m || !m[1] || !m[2] || !turnstileSecret || !siteKey) return null;
   return { token, owner: m[1], repo: m[2], turnstileSecret };
 }
 

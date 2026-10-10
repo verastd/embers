@@ -6,13 +6,15 @@ const f = { nickname: '@octocat', type: 'Bug' as const, comment: 'The search ```
 const config = { token: 't0k', owner: 'verastd', repo: 'embers-feedback', turnstileSecret: 'ts' };
 
 describe('feedbackConfig', () => {
-  it('needs a token, an owner/name repo and a Turnstile secret', () => {
-    const ok = { EMBERS_FEEDBACK_GITHUB_TOKEN: ' x ', EMBERS_FEEDBACK_REPO: 'verastd/embers-feedback', EMBERS_TURNSTILE_SECRET: ' s ' };
+  it('needs a token, an owner/name repo and both Turnstile keys', () => {
+    const ok = { EMBERS_FEEDBACK_GITHUB_TOKEN: ' x ', EMBERS_FEEDBACK_REPO: 'verastd/embers-feedback', EMBERS_TURNSTILE_SECRET: ' s ', NEXT_PUBLIC_TURNSTILE_SITE_KEY: 'k' };
     expect(feedbackConfig({})).toBeNull();
     expect(feedbackConfig({ EMBERS_FEEDBACK_GITHUB_TOKEN: 'x' })).toBeNull();
     expect(feedbackConfig({ ...ok, EMBERS_FEEDBACK_REPO: 'not a repo' })).toBeNull();
     // No Turnstile, no inbox: the endpoint must never file unchecked requests.
     expect(feedbackConfig({ ...ok, EMBERS_TURNSTILE_SECRET: undefined })).toBeNull();
+    // No site key, no widget on the form: every send would fail a check nobody can see.
+    expect(feedbackConfig({ ...ok, NEXT_PUBLIC_TURNSTILE_SITE_KEY: ' ' })).toBeNull();
     expect(feedbackConfig(ok)).toEqual({ token: 'x', owner: 'verastd', repo: 'embers-feedback', turnstileSecret: 's' });
   });
 });
