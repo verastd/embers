@@ -41,3 +41,19 @@ export function BotBadge() {
     </Badge>
   );
 }
+
+/**
+ * A caption over a radio group (Segment, Chips). FilterField wraps its
+ * control in a <label>, which would rename the group's first radio; a radio
+ * group carries its own aria-label, so its caption is visual only.
+ */
+export function GroupField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div style={{ display: 'grid', gap: 4 }}>
+      <span aria-hidden="true" style={{ font: 'var(--type-caption)', color: 'var(--text-muted)' }}>
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}

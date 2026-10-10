@@ -39,8 +39,11 @@ test.describe('F-201 user search', () => {
     await expect(results(page).getByText('Likely bot').first()).toBeVisible();
     expect(seen.at(-1)?.get('username')).toBe('freaky');
     expect(seen.at(-1)?.get('named')).toBe('true');
-    await results(page).getByRole('link', { name: 'krypticking' }).click();
-    await expect(page).toHaveURL(/\/users\/krypticking$/);
+    const profile = results(page).getByRole('link', { name: 'krypticking' });
+    await expect(profile).toHaveAttribute('href', '/users/krypticking');
+    await profile.click();
+    // The profile route compiles on first visit in dev.
+    await expect(page).toHaveURL(/\/users\/krypticking$/, { timeout: 60_000 });
   });
 
   test('Slow 3G: a loading indicator appears within 100 ms of Search', async ({ page }) => {

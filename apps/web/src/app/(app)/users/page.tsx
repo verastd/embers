@@ -19,7 +19,7 @@ import { Suspense, useMemo } from 'react';
 
 import { filterBarState } from '@/components/data/filterbar';
 import { Region } from '@/components/data/Region';
-import { BotBadge, UserLink } from '@/components/users/parts';
+import { BotBadge, GroupField, UserLink } from '@/components/users/parts';
 import { countApplied, readEnum, readText } from '@/lib/filters';
 import { formatDay, formatInt, formatUpx, NONE } from '@/lib/format';
 import { useOffsetFeed } from '@/lib/hooks';
@@ -110,7 +110,7 @@ function UserSearch() {
         onReset={filters.reset}
       >
         <TextField label="Username" placeholder="Part of a username" value={d.q} onChange={(v) => filters.set('q', v)} onEnter={() => filters.apply()} width={220} maxLength={120} icon="search" />
-        <FilterField label="Players">
+        <GroupField label="Players">
           <Segment<Bots>
             size="dense"
             label="Players"
@@ -122,7 +122,7 @@ function UserSearch() {
               { value: 'bots', label: 'Likely bots' },
             ]}
           />
-        </FilterField>
+        </GroupField>
         <FilterField label="Sort by">
           <Select<Sort> size="dense" width={170} label="Sort by" value={SORTS.find((s) => s.value === d.sort)?.value ?? 'events'} onChange={(v) => filters.set('sort', v)} options={SORTS} />
         </FilterField>

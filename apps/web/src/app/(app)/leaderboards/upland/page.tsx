@@ -9,10 +9,11 @@
  * The PRD's Visitors, Completed Collections and Uplanders Referred boards
  * need data the ledger does not have, so they are not offered.
  */
-import { Block, Chips, FilterField, PageHeader, Segment, Skeleton } from '@embers/ui';
+import { Block, Chips, PageHeader, Segment, Skeleton } from '@embers/ui';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 
+import { GroupField } from '@/components/users/parts';
 import { BoardTable } from '@/components/users/BoardTable';
 import type { BoardFigure } from '@/components/users/BoardTable';
 import {
@@ -97,12 +98,12 @@ function UplandLeaderboard() {
       <PageHeader title="Upland leaderboard" lede="Top players by treasure finds, sale proceeds and trades." />
 
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'end' }}>
-        <FilterField label="Leaderboard">
+        <GroupField label="Leaderboard">
           <Segment<UplandBoard> size="dense" label="Leaderboard" value={board} onChange={(v) => filters.applyNow({ board: v === 'treasures' ? '' : v })} options={UPLAND_BOARDS.map((b) => ({ value: b, label: UPLAND_BOARD_LABELS[b] }))} />
-        </FilterField>
-        <FilterField label="Timescope">
+        </GroupField>
+        <GroupField label="Timescope">
           <Chips<Scope> size="dense" label="Timescope" value={scope} onChange={(v) => filters.applyNow({ scope: v === 'week' ? '' : v })} options={SCOPES.map((s) => ({ value: s, label: SCOPE_LABELS[s] }))} />
-        </FilterField>
+        </GroupField>
       </div>
 
       <Block id="leaderboard" title={`${UPLAND_BOARD_LABELS[board]} · ${SCOPE_LABELS[scope].toLowerCase()}`} note={`${spec.note} Today is the UTC day so far.`}>

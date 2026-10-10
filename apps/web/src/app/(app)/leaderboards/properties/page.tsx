@@ -17,6 +17,7 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 
 import { SearchFilterField } from '@/components/data/fields';
+import { GroupField } from '@/components/users/parts';
 import { BoardTable } from '@/components/users/BoardTable';
 import { PROPERTY_BOARD_SORTS, SCOPES, SCOPE_LABELS, propertyBoard, propertyBoardSpec, scopeRange } from '@/lib/analytics';
 import type { BoardRow, PropertyBoardSort, Scope } from '@/lib/analytics';
@@ -59,15 +60,15 @@ function PropertiesLeaderboard() {
       <PageHeader title="Properties leaderboard" lede="Who bought the most Upland properties on the market, by count or by UPX spent." />
 
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'end' }}>
-        <FilterField label="Timescope">
+        <GroupField label="Timescope">
           <Chips<Scope> size="dense" label="Timescope" value={scope} onChange={(v) => filters.applyNow({ scope: v === 'week' ? '' : v })} options={SCOPES.map((s) => ({ value: s, label: SCOPE_LABELS[s] }))} />
-        </FilterField>
+        </GroupField>
         <FilterField label="City">
           <SearchFilterField kind="city" label="City" value={city ?? ''} onChange={(v) => filters.applyNow({ city: v })} width={220} />
         </FilterField>
-        <FilterField label="Rank by">
+        <GroupField label="Rank by">
           <Segment<PropertyBoardSort> size="dense" label="Rank by" value={by} onChange={(v) => filters.applyNow({ by: v === 'bought' ? '' : v })} options={PROPERTY_BOARD_SORTS.map((s) => ({ value: s, label: SORT_LABELS[s] }))} />
-        </FilterField>
+        </GroupField>
       </div>
 
       <Block

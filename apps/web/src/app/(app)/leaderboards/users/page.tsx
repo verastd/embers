@@ -18,7 +18,7 @@ import { Suspense, useMemo } from 'react';
 
 import { ExportButton } from '@/components/data/ExportButton';
 import { Region } from '@/components/data/Region';
-import { BotBadge, RankCell, UserLink } from '@/components/users/parts';
+import { BotBadge, GroupField, RankCell, UserLink } from '@/components/users/parts';
 import { LEADERBOARD_SIZE } from '@/lib/analytics';
 import { readEnum } from '@/lib/filters';
 import { formatInt, formatUpx } from '@/lib/format';
@@ -90,7 +90,7 @@ function UsersLeaderboard() {
         <FilterField label="Rank by">
           <Select<Rank> size="dense" width={180} label="Rank by" value={by} onChange={(v) => filters.applyNow({ by: v })} options={RANKS.map((r) => ({ value: r, label: RANK_LABELS[r] }))} />
         </FilterField>
-        <FilterField label="Players">
+        <GroupField label="Players">
           <Segment<Players>
             size="dense"
             label="Players"
@@ -101,7 +101,7 @@ function UsersLeaderboard() {
               { value: 'everyone', label: 'Include likely bots' },
             ]}
           />
-        </FilterField>
+        </GroupField>
       </div>
 
       <Block id="leaderboard" title={`Top ${LEADERBOARD_SIZE} by ${RANK_LABELS[by].toLowerCase()}`} note="Accounts with a username. Market layer, rebuilt every 6 h; totals cover the ledger's whole chain history.">

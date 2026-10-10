@@ -134,15 +134,15 @@ test.describe('Upland leaderboard', () => {
   test('shows treasure finds, and trades merged from both sides', async ({ page }) => {
     await page.goto('/leaderboards/upland');
     await expect(page.getByRole('heading', { level: 1, name: 'Upland leaderboard' })).toBeVisible();
-    await expect(board(page).getByRole('columnheader', { name: 'Treasures claimed' })).toBeVisible();
+    await expect(board(page).locator('td[data-label="Treasures claimed"]').first()).toBeVisible();
     await expect(board(page).getByRole('link', { name: 'krypticking' })).toBeVisible();
     await expect(board(page).getByLabel('Rank 1')).toBeVisible();
     await page.getByRole('radio', { name: 'Trades' }).click();
     await expect(page).toHaveURL(/board=trades/);
-    await expect(board(page).getByRole('columnheader', { name: 'Bought' })).toBeVisible();
+    await expect(board(page).locator('td[data-label="Bought"]').first()).toBeVisible();
     await expect(board(page).getByRole('link', { name: 'krypticking' })).toBeVisible();
     await page.getByRole('radio', { name: 'Total UPX proceeds' }).click();
-    await expect(board(page).getByRole('columnheader', { name: 'UPX proceeds' })).toBeVisible();
+    await expect(board(page).locator('td[data-label="UPX proceeds"]').first()).toBeVisible();
   });
 
   test('Slow 3G: a loading indicator appears within 100 ms of a change', async ({ page }) => {

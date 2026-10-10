@@ -41,7 +41,9 @@ test('Slow 3G: tiles, chart and table show their loading state as soon as the pa
   await page.goto('/', { waitUntil: 'commit', timeout: 90_000 });
   await expect(page.getByRole('heading', { level: 1, name: 'Embers' })).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('[aria-busy="true"]').first()).toBeVisible({ timeout: 100 });
-  await expect(sales(page).getByRole('cell', { name: '2506 SEARSDALE AVE' })).toBeVisible({ timeout: 60_000 });
+  // Each region's own skeleton, not just one of them.
+  await expect(live(page).getByText('Connecting').first()).toBeVisible();
+  await expect(sales(page).locator('[aria-busy="true"]').first()).toBeAttached();
 });
 
 test('one failed tile shows its own error and Retry; the others still render', async ({ page }) => {

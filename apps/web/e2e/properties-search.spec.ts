@@ -163,10 +163,13 @@ test('the shell fits the screen, with the nav in a drawer on phones', async ({ p
   }
 });
 
-test('/ opens Home and /properties opens Properties search', async ({ page }) => {
+test('/ opens Home', async ({ page }) => {
   await page.goto('/');
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Embers' })).toBeVisible();
+});
+
+test('/properties opens Properties search', async ({ page }) => {
   await page.goto('/properties');
   await expect(page).toHaveURL(/\/properties\/search$/);
 });
