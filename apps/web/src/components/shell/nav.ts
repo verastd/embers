@@ -38,11 +38,20 @@ const LEADERBOARDS: NavItem[] = [
 ];
 
 const COMMUNITY: NavItem[] = [
-  // F-1901 to F-1905
+  // F-1901 Broadcasts, F-1902 External Tools, F-1903 Devshops: need owner content (not built)
+
+  { label: 'New Player Guide', href: '/new-player', icon: 'sparkles' },
+
+  // F-1905 Supporters: needs owner content (not built)
 ];
 
 const SYSTEM: NavItem[] = [
-  // F-1906 to F-1911
+  { label: 'Changelog', href: '/changelog', icon: 'newspaper' },
+  { label: 'Feedback', href: '/feedback', icon: 'message-circle' },
+  { label: 'About', href: '/about', icon: 'info' },
+  { label: 'Troubleshoot', href: '/troubleshoot', icon: 'life-buoy' },
+  // F-1910 Imprint: needs the operator's legal details (not built)
+  { label: 'Privacy', href: '/privacy', icon: 'shield' },
 ];
 
 const SECTIONS: NavGroup[] = [
