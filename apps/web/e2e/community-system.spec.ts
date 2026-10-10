@@ -62,6 +62,35 @@ test('changelog: grouped by year with a count, entries link their routes', async
   await expect(page).toHaveURL(/\/properties\/search/, { timeout: 30_000 });
 });
 
+/**
+ * A stand-in for Cloudflare's Turnstile script: renders an "I am human"
+ * button that hands the widget's callback a token. `fail` makes the script
+ * request fail; `delayMs` holds it so the loading state can be seen.
+ */
+async function fakeTurnstile(page: Page, opts: { fail?: () => boolean; delayMs?: number } = {}): Promise<void> {
+  await page.route('https://challenges.cloudflare.com/**', async (route) => {
+    if (opts.delayMs) await new Promise((r) => setTimeout(r, opts.delayMs));
+    if (opts.fail?.()) return route.abort();
+    return route.fulfill({
+      contentType: 'text/javascript',
+      body: `window.turnstile = {
+        render(el, o) { const b = document.createElement('button'); b.type = 'button'; b.textContent = 'I am human';
+          b.onclick = () => o.callback('human-token'); el.appendChild(b); return 'w1'; },
+        reset() {}, remove() {},
+      };`,
+    });
+  });
+}
+
+const passHumanCheck = async (page: Page): Promise<void> => {
+  await page.getByRole('button', { name: 'I am human' }).click();
+  await expect(page.getByText('Verified')).toBeVisible();
+};
+
+test.beforeEach(async ({ page }) => {
+  await fakeTurnstile(page);
+});
+
 const sendButton = (page: Page) => page.getByRole('button', { name: /Send feedback|Sending|Sent/ });
 
 test('feedback: validation on Send, then per field as it is fixed', async ({ page }) => {
@@ -92,6 +121,7 @@ async function fillValid(page: Page): Promise<void> {
   await page.getByLabel('Nickname (optional)').fill('tester');
   await page.getByRole('radio', { name: 'Improvement' }).click();
   await page.getByLabel('Comment *').fill('Please add a city filter to the guide.');
+  await passHumanCheck(page);
 }
 
 test('feedback: pending, then success with the reference', async ({ page }) => {
@@ -107,7 +137,7 @@ test('feedback: pending, then success with the reference', async ({ page }) => {
   await expect(page.getByText('Thanks, your feedback was filed')).toBeVisible();
   await expect(page.getByText('#314')).toBeVisible();
   await expect(page.getByText('req-fb-1')).toBeVisible();
-  expect(body).toEqual({ nickname: 'tester', type: 'Improvement', comment: 'Please add a city filter to the guide.' });
+  expect(body).toEqual({ nickname: 'tester', type: 'Improvement', comment: 'Please add a city filter to the guide.', turnstile_token: 'human-token' });
   await page.getByRole('button', { name: 'Send more feedback' }).click();
   await expect(page.getByLabel('Comment *')).toHaveValue('');
 });
@@ -122,14 +152,46 @@ test('feedback: a server error shows the reason and request id, and Retry sends 
   await sendButton(page).click();
   await expect(page.getByRole('alert').filter({ hasText: 'The feedback inbox is unreachable. (request req-fb-2)' })).toBeVisible();
   await expect(page.getByText('Thanks, your feedback was filed')).toHaveCount(0);
+  // The token was spent on the first send; the check asks again before Retry can send.
+  await passHumanCheck(page);
   await page.getByRole('button', { name: 'Retry' }).click();
   await expect.poll(() => calls).toBe(2);
+});
+
+test('feedback: Send waits for the human check, and sends nothing until it passes', async ({ page }) => {
+  let posts = 0;
+  await page.route('**/api/v1/feedback', (route) => {
+    posts += 1;
+    return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ data: { reference: '#1' } }) });
+  });
+  await page.goto('/feedback');
+  await page.getByRole('radio', { name: 'Bug' }).click();
+  await page.getByLabel('Comment *').fill('Long enough comment');
+  await expect(page.getByText('Complete the check above to send.')).toBeVisible();
+  await sendButton(page).click();
+  await expect(page.getByText('Complete the human check first')).toBeVisible();
+  expect(posts).toBe(0);
+});
+
+test('feedback: the human check shows loading, then a failure with Retry that loads it again', async ({ page }) => {
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
+  let failing = true;
+  await fakeTurnstile(page, { fail: () => failing, delayMs: 400 });
+  await page.goto('/feedback');
+  await expect(page.getByText('Loading the human check…')).toBeVisible();
+  const alert = page.getByRole('alert').filter({ hasText: 'The human check is unavailable' });
+  await expect(alert).toBeVisible();
+  failing = false;
+  await alert.getByRole('button', { name: 'Retry' }).click();
+  await expect(page.getByText('Loading the human check…')).toBeVisible();
+  await passHumanCheck(page);
 });
 
 test('feedback: the real server without an inbox says nothing was sent', async ({ page }) => {
   await fillValid(page);
   await sendButton(page).click();
-  await expect(page.getByRole('alert').filter({ hasText: 'nothing was sent' })).toBeVisible();
+  // The real route: on a cold dev server its first request also compiles it.
+  await expect(page.getByRole('alert').filter({ hasText: 'nothing was sent' })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText('Thanks, your feedback was filed')).toHaveCount(0);
 });
 

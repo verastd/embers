@@ -35,6 +35,9 @@ export default defineConfig({
         // A fake app: the sign-in redirect is testable; GitHub itself is never reached.
         GITHUB_CLIENT_ID: 'Iv1.e2e0000000000000',
         GITHUB_CLIENT_SECRET: 'e2e-fake-client-secret',
+        // Cloudflare's documented always-pass test site key; the e2e specs also
+        // serve a fake widget script, so Cloudflare itself is never reached.
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: '1x00000000000000000000AA',
       },
       port: PORT,
       reuseExistingServer: false,

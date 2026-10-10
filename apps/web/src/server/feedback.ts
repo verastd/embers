@@ -5,8 +5,9 @@
  *
  *   EMBERS_FEEDBACK_GITHUB_TOKEN   a token that may create issues in that repo
  *   EMBERS_FEEDBACK_REPO           owner/name, e.g. verastd/embers-feedback
+ *   EMBERS_TURNSTILE_SECRET        Turnstile secret (server/turnstile.ts)
  *
- * With either missing, nothing is sent and the route answers 503
+ * With any of them missing, nothing is sent and the route answers 503
  * `feedback_not_configured`: the form never says "sent" when it was not.
  */
 import type { FeedbackInput } from '@/lib/feedback';
@@ -15,6 +16,8 @@ export interface FeedbackConfig {
   token: string;
   owner: string;
   repo: string;
+  /** Without it the endpoint would file an issue for any script that sets an Origin header. */
+  turnstileSecret: string;
 }
 
 const REPO = /^([A-Za-z0-9-]{1,39})\/([A-Za-z0-9._-]{1,100})$/;
@@ -22,8 +25,9 @@ const REPO = /^([A-Za-z0-9-]{1,39})\/([A-Za-z0-9._-]{1,100})$/;
 export function feedbackConfig(env: Record<string, string | undefined> = process.env): FeedbackConfig | null {
   const token = env.EMBERS_FEEDBACK_GITHUB_TOKEN?.trim();
   const m = REPO.exec(env.EMBERS_FEEDBACK_REPO?.trim() ?? '');
-  if (!token || !m || !m[1] || !m[2]) return null;
-  return { token, owner: m[1], repo: m[2] };
+  const turnstileSecret = env.EMBERS_TURNSTILE_SECRET?.trim();
+  if (!token || !m || !m[1] || !m[2] || !turnstileSecret) return null;
+  return { token, owner: m[1], repo: m[2], turnstileSecret };
 }
 
 /** A fence longer than any backtick run in `text`, so the comment cannot close it. */

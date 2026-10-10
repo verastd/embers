@@ -9,12 +9,18 @@
  * server without an inbox answers `feedback_not_configured`, shown as an
  * error: the page never says "sent" when nothing was sent.
  *
+ * Turnstile (NFR-4) guards Send when NEXT_PUBLIC_TURNSTILE_SITE_KEY is set;
+ * the server refuses any request without a verified token either way.
+ *
  * `?type=Bug&page=/x` (the "Report" link from an error state) prefills it.
  */
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { AsyncButton, Block, Button, Card, FactList, PageHeader, Segment, Skeleton, StatusBanner, TextField } from '@embers/ui';
-import { Suspense, useId, useState } from 'react';
+import { Suspense, useId, useRef, useState } from 'react';
+
+import { TurnstileField } from '@/components/forms/TurnstileField';
+import type { TurnstileHandle } from '@/components/forms/TurnstileField';
 
 import { COMMENT_MAX, COMMENT_MIN, FEEDBACK_TYPES, NICKNAME_MAX, isFeedbackType, safePagePath, validateFeedback } from '@/lib/feedback';
 import type { FeedbackErrors, FeedbackType } from '@/lib/feedback';
@@ -34,6 +40,8 @@ interface Sent {
   type: FeedbackType;
 }
 
+const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() ?? '';
+
 function FeedbackForm() {
   const params = useSearchParams();
   const initialType = params?.get('type');
@@ -45,6 +53,8 @@ function FeedbackForm() {
   const [serverErrors, setServerErrors] = useState<FeedbackErrors>({});
   const [sent, setSent] = useState<Sent | null>(null);
   const commentId = useId();
+  const [human, setHuman] = useState<string | null>(null);
+  const turnstile = useRef<TurnstileHandle | null>(null);
 
   const errors = validateFeedback({ nickname, type, comment });
   const shown = (k: 'nickname' | 'type' | 'comment'): string | undefined => (touched[k] ? (errors[k] ?? serverErrors[k]) : undefined);
@@ -55,8 +65,9 @@ function FeedbackForm() {
     setTouched({ nickname: true, type: true, comment: true });
     setServerErrors({});
     if (Object.keys(errors).length > 0 || !isFeedbackType(type)) throw new Error('Fix the highlighted fields first');
+    if (SITE_KEY && !human) throw new Error('Complete the human check first');
     try {
-      const res = await sendFeedback({ nickname: nickname.trim(), type, comment: comment.trim(), ...(page ? { page } : {}) }, signal);
+      const res = await sendFeedback({ nickname: nickname.trim(), type, comment: comment.trim(), ...(page ? { page } : {}) }, signal, human);
       setSent({ reference: res.reference, requestId: res.requestId, type });
       setNickname('');
       setComment('');
@@ -68,6 +79,9 @@ function FeedbackForm() {
         throw new Error(e.requestId ? `${e.message} (request ${e.requestId})` : e.message);
       }
       throw e;
+    } finally {
+      // A Turnstile token is single-use: ask again for the next send.
+      turnstile.current?.reset();
     }
   };
 
@@ -171,6 +185,7 @@ function FeedbackForm() {
                 </span>
               )}
             </div>
+            {SITE_KEY && <TurnstileField ref={turnstile} siteKey={SITE_KEY} onToken={setHuman} />}
             <div>
               <AsyncButton label="Send feedback" pendingLabel="Sending…" successLabel="Sent" icon="message-circle" onAction={submit} />
             </div>

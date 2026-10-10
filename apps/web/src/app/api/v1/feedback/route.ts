@@ -1,6 +1,7 @@
 /**
  * POST /api/v1/feedback (F-1907). Same-origin only (NFR-4), JSON up to 16 KB,
- * the same validation as the form, then one GitHub issue in the configured
+ * the same validation as the form, a Turnstile check (`turnstile_token`),
+ * then one GitHub issue in the configured
  * feedback repository (`server/feedback.ts`). Answers use the PRD §10
  * envelopes: `{ data: { reference }, generated_at }` or
  * `{ error: { code, message, request_id, retryable, fields? } }`.
@@ -12,6 +13,7 @@ import { parseFeedback } from '@/lib/feedback';
 import type { FeedbackErrors } from '@/lib/feedback';
 import { isTrustedOrigin } from '@/server/auth/config';
 import { feedbackConfig, submitFeedback } from '@/server/feedback';
+import { verifyTurnstile } from '@/server/turnstile';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +44,14 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   const config = feedbackConfig();
   if (config === null) return fail(503, 'feedback_not_configured', 'Feedback is not connected to an inbox on this server yet, so nothing was sent.', requestId);
+
+  const token = (body as { turnstile_token?: unknown }).turnstile_token;
+  const ip = req.headers.get('cf-connecting-ip') ?? req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null;
+  const human = await verifyTurnstile(token, { secret: config.turnstileSecret, remoteIp: ip });
+  if (!human.ok) {
+    if (human.reason === 'unavailable') return fail(503, 'turnstile_unavailable', 'The human check could not be confirmed right now. Try again.', requestId, true);
+    return fail(400, human.reason === 'missing' ? 'turnstile_required' : 'turnstile_failed', 'Complete the human check, then send again.', requestId);
+  }
 
   const result = await submitFeedback(parsed.value, requestId, config);
   if (!result.ok) return fail(result.status, result.code, result.message, requestId, result.retryable);
