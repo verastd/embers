@@ -18,17 +18,25 @@ import type { ChartPalette, TimeSeriesSpec } from './options';
 
 use([ELine, GridComponent, TooltipComponent, SVGRenderer]);
 
-function useEChart(build: (palette: ChartPalette) => EChartsCoreOption, deps: readonly unknown[]) {
+/**
+ * Mounts one ECharts instance on the returned ref, redraws it when `deps`
+ * change or the theme flips, and disposes it on unmount. `onInstance` gets
+ * the instance after mount (and null on unmount), for zoom and export.
+ */
+export function useEChart(build: (palette: ChartPalette) => EChartsCoreOption, deps: readonly unknown[], onInstance?: (chart: ECharts | null) => void) {
   const ref = useRef<HTMLDivElement>(null);
   const chart = useRef<ECharts | null>(null);
   const buildRef = useRef(build);
   buildRef.current = build;
+  const onInstanceRef = useRef(onInstance);
+  onInstanceRef.current = onInstance;
 
   useEffect(() => {
     const el = ref.current;
     if (el === null) return undefined;
     const instance = init(el, undefined, { renderer: 'svg' });
     chart.current = instance;
+    onInstanceRef.current?.(instance);
     const draw = (): void => instance.setOption(buildRef.current(readPalette(el)), true);
     draw();
     const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => instance.resize());
@@ -40,6 +48,7 @@ function useEChart(build: (palette: ChartPalette) => EChartsCoreOption, deps: re
       themeWatch?.disconnect();
       instance.dispose();
       chart.current = null;
+      onInstanceRef.current?.(null);
     };
   }, []);
 
