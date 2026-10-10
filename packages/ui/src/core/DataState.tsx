@@ -51,6 +51,15 @@ export interface DataStateProps {
   style?: CSSProperties;
 }
 
+/** An age in minutes as people say it: "12 min", "38 h", "2 d". */
+export function formatAge(minutes: number): string {
+  const m = Math.max(0, Math.round(minutes));
+  if (m < 120) return `${m} min`;
+  const h = Math.round(m / 60);
+  if (h < 48) return `${h} h`;
+  return `${Math.round(h / 24)} d`;
+}
+
 export function DataState({
   state = 'ready',
   skeleton,
@@ -146,7 +155,7 @@ export function DataState({
       </StatusBanner>
     ) : state === 'stale' ? (
       <StatusBanner kind="stale" actionLabel="Refresh" onAction={onRefresh}>
-        Data is {staleMinutes} min old
+        Data is {formatAge(staleMinutes ?? 0)} old
       </StatusBanner>
     ) : state === 'capped' ? (
       <StatusBanner kind="capped" actionLabel={onUpgrade ? 'Upgrade' : undefined} onAction={onUpgrade}>

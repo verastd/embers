@@ -8,6 +8,8 @@
  */
 import type { NavGroup, NavItem } from '@embers/ui';
 
+import { USER_ROUTES } from '@/lib/users';
+
 export const ROUTES = {
   home: '/',
   propertiesSearch: '/properties/search',
@@ -15,26 +17,38 @@ export const ROUTES = {
 
 const HOME: NavItem[] = [
   // F-190
+  { label: 'Home', href: ROUTES.home, icon: 'house' },
 ];
 
 const USERS: NavItem[] = [
-  // F-201, F-202
+  // F-201, F-202 (profiles live under /users/<username>)
+  { label: 'User Search', href: USER_ROUTES.search, icon: 'user' },
 ];
 
 const PROPERTIES: NavItem[] = [
   // F-401 Overview (first in the PRD order)
+  { label: 'Overview', href: '/properties/overview', icon: 'layers' },
 
   { label: 'Search', href: ROUTES.propertiesSearch, icon: 'search' },
 
   // F-404, F-405, F-406
+  { label: 'Live Listings', href: '/properties/listings', icon: 'radio', live: true },
+  { label: 'Live Minting', href: '/properties/mints', icon: 'sparkles', live: true },
+  { label: 'Transactions', href: '/properties/transactions', icon: 'receipt' },
 
   // F-407, F-408, F-409
+  { label: 'Statistics', href: '/properties/statistics', icon: 'chart-line' },
+  { label: 'Mint Analytics', href: '/properties/mint-analytics', icon: 'hammer' },
 
   // F-410, F-412
+  { label: 'Appraiser', href: '/tools/appraiser', icon: 'calculator' },
 ];
 
 const LEADERBOARDS: NavItem[] = [
   // F-1606
+  { label: 'Users', href: USER_ROUTES.leaderboardUsers, icon: 'users' },
+  { label: 'Properties', href: USER_ROUTES.leaderboardProperties, icon: 'building-2' },
+  { label: 'Upland', href: USER_ROUTES.leaderboardUpland, icon: 'trophy' },
 ];
 
 const COMMUNITY: NavItem[] = [

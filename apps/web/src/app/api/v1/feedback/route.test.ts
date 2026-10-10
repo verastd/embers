@@ -32,6 +32,7 @@ function configure(): void {
   vi.stubEnv('EMBERS_FEEDBACK_GITHUB_TOKEN', 'tok');
   vi.stubEnv('EMBERS_FEEDBACK_REPO', 'verastd/embers-feedback');
   vi.stubEnv('EMBERS_TURNSTILE_SECRET', 'ts');
+  vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', 'site');
 }
 
 beforeEach(() => {
@@ -40,6 +41,7 @@ beforeEach(() => {
   vi.stubEnv('EMBERS_FEEDBACK_GITHUB_TOKEN', '');
   vi.stubEnv('EMBERS_FEEDBACK_REPO', '');
   vi.stubEnv('EMBERS_TURNSTILE_SECRET', '');
+  vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', '');
 });
 afterEach(() => {
   vi.unstubAllEnvs();

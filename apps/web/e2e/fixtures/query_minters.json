@@ -1,0 +1,37 @@
+{
+  "columns": [
+    {
+      "name": "account",
+      "type": "string"
+    },
+    {
+      "name": "mints",
+      "type": "number"
+    }
+  ],
+  "rows": [
+    [
+      "mequ13noaq12",
+      22
+    ],
+    [
+      "oumfkb1vplp5",
+      15
+    ],
+    [
+      "upxminter123",
+      9
+    ]
+  ],
+  "stats": {
+    "rows": 3,
+    "elapsed_ms": 120,
+    "rows_read": 395793,
+    "bytes_read": 9000000,
+    "truncated": false,
+    "table": "events",
+    "dedup": "exact"
+  },
+  "sql": "-- e2e fixture",
+  "chain": "upland"
+}

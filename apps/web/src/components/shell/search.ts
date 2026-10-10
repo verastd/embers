@@ -1,14 +1,16 @@
 /**
  * Global search rows (PRD F-101) from the ledger's `/search`. Only kinds whose
  * destination route exists are offered (PRD §0 rule 7): properties and
- * cities open Properties search pre-filtered. Accounts join when user
- * profiles (F-202) ship.
+ * cities open Properties search pre-filtered; accounts open the user
+ * profile (F-202).
  */
 import type { TopBarSearchRow } from '@embers/ui';
 import type { SearchResult } from '@embers/ledger';
 
 import { hrefWith } from '@/lib/filters';
 import { formatUpx } from '@/lib/format';
+
+import { userHref } from '@/lib/users';
 
 import { ROUTES } from './nav';
 
@@ -18,6 +20,12 @@ export const RECENT_MAX = 10;
 
 export function searchRows(r: SearchResult): TopBarSearchRow[] {
   return [
+    ...(r.accounts ?? []).map((a) => ({
+      label: a.username ? `${a.username} · ${a.account}` : a.account,
+      kind: 'User',
+      icon: 'user' as const,
+      href: userHref(a.username || a.account),
+    })),
     ...(r.properties ?? []).map((p) => ({
       label: [p.address || `#${p.property_id}`, p.city].filter(Boolean).join(', ') + (p.mint_price_upx > 0 ? ` · mint ${formatUpx(p.mint_price_upx, { compact: true })}` : ''),
       kind: 'Property',

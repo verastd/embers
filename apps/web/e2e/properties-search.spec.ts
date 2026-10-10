@@ -157,15 +157,19 @@ test('the shell fits the screen, with the nav in a drawer on phones', async ({ p
   if (isMobile) {
     await page.getByRole('button', { name: 'Open navigation' }).click();
     const drawer = page.getByRole('dialog');
-    await expect(drawer.getByRole('link', { name: 'Search' })).toBeVisible();
+    await expect(drawer.getByRole('link', { name: 'Search', exact: true })).toBeVisible();
   } else {
-    await expect(page.getByRole('link', { name: 'Search' }).first()).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('link', { name: 'Search', exact: true }).first()).toHaveAttribute('aria-current', 'page');
   }
 });
 
-test('/ and /properties open Properties search', async ({ page }) => {
+test('/ opens Home', async ({ page }) => {
   await page.goto('/');
-  await expect(page).toHaveURL(/\/properties\/search$/);
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Embers' })).toBeVisible();
+});
+
+test('/properties opens Properties search', async ({ page }) => {
   await page.goto('/properties');
   await expect(page).toHaveURL(/\/properties\/search$/);
 });

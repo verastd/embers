@@ -1,0 +1,57 @@
+{
+  "columns": [
+    {
+      "name": "neighborhood",
+      "type": "string"
+    },
+    {
+      "name": "traded",
+      "type": "number"
+    },
+    {
+      "name": "sales",
+      "type": "number"
+    },
+    {
+      "name": "median_last_sale",
+      "type": "number"
+    }
+  ],
+  "rows": [
+    [
+      "PARADISE",
+      412,
+      903,
+      30500
+    ],
+    [
+      "SUNRISE",
+      188,
+      341,
+      24000
+    ],
+    [
+      "THE LAKES",
+      97,
+      150,
+      52000
+    ],
+    [
+      "",
+      33,
+      40,
+      18000
+    ]
+  ],
+  "stats": {
+    "rows": 4,
+    "elapsed_ms": 120,
+    "rows_read": 395793,
+    "bytes_read": 9000000,
+    "truncated": false,
+    "table": "properties",
+    "dedup": "exact"
+  },
+  "sql": "-- e2e fixture",
+  "chain": "upland"
+}

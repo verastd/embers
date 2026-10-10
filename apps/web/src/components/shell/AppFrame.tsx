@@ -175,7 +175,7 @@ export function AppFrame({ children, user, signInAvailable }: { children: ReactN
           searchStatus={status}
           results={results}
           recent={recent}
-          searchPlaceholder="Search properties and cities…"
+          searchPlaceholder="Search users, properties and cities…"
           onClearRecent={recent.length > 0 ? clearRecent : undefined}
           onPick={pick}
           onSearchRetry={() => void search.refetch()}
