@@ -90,6 +90,26 @@ test.describe('F-201 user search', () => {
   });
 });
 
+const ACCOUNT_ROW = {
+  account: 'ymc55j4fboxi',
+  username: 'kingbo',
+  usernames: ['kingbo'],
+  username_changes: 1,
+  first_seen: '2026-01-01T03:26:16.000Z',
+  last_seen: '2026-10-09T00:12:28.000Z',
+  active_days: 5,
+  events: 40,
+  buys: 0,
+  sells: 1,
+  upx_spent: 0,
+  upx_received: 33250,
+  median_buy_latency_s: 0,
+  sub_5s_buys: 0,
+  pct_buys_under_1m: 0,
+  likely_bot: false,
+  upx_net: 33250,
+};
+
 const HOLDING = {
   property_id: '81826746578110',
   address: '2506 SEARSDALE AVE',
@@ -207,11 +227,32 @@ test.describe('F-202 user profile', () => {
   });
 
   test('an unknown username shows not-found with a way back to search', async ({ page }) => {
+    await page.route('**/bff/ledger/accounts?*', json(emptyPage));
     await page.goto('/users/No_Such_User');
     await expect(page.getByRole('heading', { level: 1, name: 'User not found' })).toBeVisible();
-    await expect(page.getByText('No Upland user named “No_Such_User” is in the ledger.')).toBeVisible();
+    await expect(page.getByText(/No Upland player currently uses the username “No_Such_User”\. Earlier usernames can’t be searched yet/)).toBeVisible();
     await page.getByRole('button', { name: 'Search users' }).click();
     await expect(page).toHaveURL(/\/users\?search=1&q=No_Such_User$/);
+  });
+
+  test('a short name with more substring matches than the lookup reads says the search was cut short', async ({ page }) => {
+    // The stub ignores offset and always has more: the lookup reads its 10-page cap.
+    await page.goto('/users/zz_');
+    await expect(page.getByText(/No exact match for “zz_” among the first 30 usernames that contain it\. Try a longer name\./)).toBeVisible();
+  });
+
+  test('finds an exact username past the first page of substring matches', async ({ page }) => {
+    const offsets: string[] = [];
+    const fillers = Array.from({ length: 100 }, (_, i) => ({ ...ACCOUNT_ROW, account: `filler${i}`.slice(0, 12), username: `kingbo${i}`, usernames: [`kingbo${i}`] }));
+    await page.route('**/bff/ledger/accounts?*', (route) => {
+      const offset = new URL(route.request().url()).searchParams.get('offset') ?? '0';
+      offsets.push(offset);
+      const data = offset === '0' ? fillers : [{ ...ACCOUNT_ROW, account: 'ymc55j4fboxi', username: 'KingBo', usernames: ['KingBo'] }];
+      return json({ data, count: data.length, limit: 100, offset: Number(offset), has_more: offset === '0' })(route);
+    });
+    await page.goto('/users/kingbo');
+    await expect(page.locator('section[aria-labelledby="profile-title"]').getByText('ymc55j4fboxi').first()).toBeVisible();
+    expect(offsets).toEqual(['0', '100']);
   });
 
   test('an account-shaped name the ledger does not know shows not-found', async ({ page }) => {

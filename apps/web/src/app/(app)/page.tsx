@@ -24,8 +24,8 @@ import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { Region } from '@/components/data/Region';
 import { NAV } from '@/components/shell/nav';
 import { UserLink } from '@/components/users/parts';
-import { activeAccountsSpec, listingsSpec, numCell, resultRecords, salesSpec, trailingRange } from '@/lib/analytics';
-import { formatClock, formatInstant, formatInt, formatShortDay, formatUpx, utcDayOffset } from '@/lib/format';
+import { activeAccountsSpec, activityCaption, dailyWindowStart, listingsSpec, numCell, resultRecords, salesSpec, trailingRange } from '@/lib/analytics';
+import { formatClock, formatInstant, formatInt, formatShortDay, formatUpx } from '@/lib/format';
 import { useLedgerQuery } from '@/lib/hooks';
 import type { OffsetPage, QueryResult } from '@/lib/hooks';
 import { queryKey } from '@/lib/query-core';
@@ -122,7 +122,7 @@ function Figure({ q, label, value, hint, upx, paused }: { q: QueryResult<unknown
 /* --- chain activity ------------------------------------------------------------ */
 
 function ActivityChart() {
-  const after = `${utcDayOffset(DAYS)}T00:00:00Z`;
+  const after = dailyWindowStart(DAYS, Date.now());
   const q = useLedgerQuery<AnalyticsResult>(queryKey('/analytics/timeseries#home', { after }), (c, signal) => c.analytics.timeseries({ metric: 'transactions', bucket: 'day', after }, { signal }), {
     heavy: true,
     isEmpty: (r) => r.rows.length === 0,
@@ -136,12 +136,12 @@ function ActivityChart() {
   }, [q.data]);
   const total = series.values.reduce<number>((s, v) => s + (v ?? 0), 0);
   return (
-    <Block id="activity" title="Chain activity" note={`Transactions per UTC day, last ${DAYS} days. Live from the chain.`}>
+    <Block id="activity" title="Chain activity" note={`Transactions per UTC day over the last ${DAYS} days, today so far. Live from the chain.`}>
       <Region query={q} skeleton={<Skeleton height={260} />} emptyMessage="No chain activity in this range">
         {() => (
           <div style={{ display: 'grid', gap: 6 }}>
             <TimeSeriesChart
-              label={`Transactions per day over the last ${DAYS} days, ${formatInt(total)} in total`}
+              label={`Transactions per UTC day: ${activityCaption(total, DAYS, series.categories.length)}`}
               categories={series.categories}
               lines={[{ name: 'Transactions', values: series.values, tone: 1 }]}
               formatAxis={formatShortDay}
@@ -149,7 +149,7 @@ function ActivityChart() {
               height={240}
             />
             <span style={{ font: 'var(--type-caption)', color: 'var(--text-muted)' }}>
-              {formatInt(total)} transactions over {series.categories.length} days
+              {activityCaption(total, DAYS, series.categories.length)}
             </span>
           </div>
         )}

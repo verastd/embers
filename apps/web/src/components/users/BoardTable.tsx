@@ -17,6 +17,14 @@ import { Region } from '@/components/data/Region';
 import { RankCell, UserLink } from '@/components/users/parts';
 import { usernameMap, usernamesSpec } from '@/lib/analytics';
 import type { BoardRow } from '@/lib/analytics';
+
+/** A ranked board, with a note when the ranking could not be proven exact. */
+export interface Board {
+  rows: BoardRow[];
+  approximate?: string;
+}
+
+export const isEmptyBoard = (b: Board): boolean => b.rows.length === 0;
 import { useLedgerQuery } from '@/lib/hooks';
 import type { QueryResult } from '@/lib/hooks';
 import { queryKey } from '@/lib/query-core';
@@ -29,7 +37,7 @@ export interface BoardFigure {
 }
 
 export interface BoardTableProps {
-  query: QueryResult<BoardRow[]>;
+  query: QueryResult<Board>;
   /** `account`: rows name chain accounts (usernames are looked up); `username`: rows already are usernames. */
   who: 'account' | 'username';
   whoLabel: string;
@@ -42,7 +50,7 @@ export interface BoardTableProps {
 type Shown = BoardRow & { name: string | null };
 
 export function BoardTable({ query, who, whoLabel, figures, emptyMessage, emptyAction, exportName }: BoardTableProps) {
-  const rows = useMemo(() => query.data ?? [], [query.data]);
+  const rows = useMemo(() => query.data?.rows ?? [], [query.data]);
   const accounts = useMemo(() => (who === 'account' ? rows.map((r) => r.who) : []), [rows, who]);
   const names = useLedgerQuery<AnalyticsResult>(
     accounts.length > 0 ? queryKey('/analytics/query#usernames', { accounts: accounts.join(',') }) : null,
@@ -72,6 +80,9 @@ export function BoardTable({ query, who, whoLabel, figures, emptyMessage, emptyA
     <Region query={query} skeleton={<DataTable<Shown> columns={columns} rows={[]} loading skeletonRows={10} />} emptyMessage={emptyMessage} emptyAction={emptyAction}>
       {() => (
         <div style={{ display: 'grid', gap: 10 }}>
+          {query.data?.approximate && (
+            <StatusBanner kind="capped">{query.data.approximate}</StatusBanner>
+          )}
           {namesFailed && (
             <StatusBanner kind="partial" actionLabel="Retry" onAction={names.refetch}>
               Could not look up usernames. Accounts are shown instead.

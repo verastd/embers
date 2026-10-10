@@ -14,22 +14,21 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 
 import { GroupField } from '@/components/users/parts';
-import { BoardTable } from '@/components/users/BoardTable';
-import type { BoardFigure } from '@/components/users/BoardTable';
+import { BoardTable, isEmptyBoard } from '@/components/users/BoardTable';
+import type { Board, BoardFigure } from '@/components/users/BoardTable';
 import {
   SCOPES,
   SCOPE_LABELS,
   UPLAND_BOARDS,
   UPLAND_BOARD_LABELS,
-  mergeTrades,
+  loadTrades,
   proceedsBoardSpec,
   rankRecords,
   resultRecords,
   scopeRange,
-  tradeSideSpec,
   treasureBoardSpec,
 } from '@/lib/analytics';
-import type { BoardRow, Scope, UplandBoard } from '@/lib/analytics';
+import type { Scope, UplandBoard } from '@/lib/analytics';
 import { readEnum } from '@/lib/filters';
 import { formatInt, formatUpx } from '@/lib/format';
 import { useLedgerQuery } from '@/lib/hooks';
@@ -37,7 +36,7 @@ import type { Fetcher } from '@/lib/hooks';
 import { queryKey } from '@/lib/query-core';
 import { useFilters } from '@/lib/useFilters';
 
-const BOARDS: Record<UplandBoard, { who: 'account' | 'username'; whoLabel: string; figures: BoardFigure[]; note: string; read: (scope: Scope) => Fetcher<BoardRow[]> }> = {
+const BOARDS: Record<UplandBoard, { who: 'account' | 'username'; whoLabel: string; figures: BoardFigure[]; note: string; read: (scope: Scope) => Fetcher<Board> }> = {
   treasures: {
     who: 'username',
     whoLabel: 'Player',
@@ -46,7 +45,7 @@ const BOARDS: Record<UplandBoard, { who: 'account' | 'username'; whoLabel: strin
       { key: 'extra', label: 'UPX rewards', format: (n) => formatUpx(n) },
     ],
     note: 'Treasure hunt finds from Upland’s public data, refreshed daily at 04:43 UTC.',
-    read: (scope) => async (c, signal) => rankRecords(resultRecords(await c.analytics.query(treasureBoardSpec(scopeRange(scope, Date.now())), { signal })), 'user_name', 'claimed', 'reward_upx'),
+    read: (scope) => async (c, signal) => ({ rows: rankRecords(resultRecords(await c.analytics.query(treasureBoardSpec(scopeRange(scope, Date.now())), { signal })), 'user_name', 'claimed', 'reward_upx') }),
   },
   proceeds: {
     who: 'account',
@@ -56,7 +55,7 @@ const BOARDS: Record<UplandBoard, { who: 'account' | 'username'; whoLabel: strin
       { key: 'extra', label: 'Properties sold', format: formatInt },
     ],
     note: 'Property sales decoded from the chain every 15 min.',
-    read: (scope) => async (c, signal) => rankRecords(resultRecords(await c.analytics.query(proceedsBoardSpec(scopeRange(scope, Date.now())), { signal })), 'seller', 'proceeds_upx', 'sold'),
+    read: (scope) => async (c, signal) => ({ rows: rankRecords(resultRecords(await c.analytics.query(proceedsBoardSpec(scopeRange(scope, Date.now())), { signal })), 'seller', 'proceeds_upx', 'sold') }),
   },
   trades: {
     who: 'account',
@@ -68,11 +67,13 @@ const BOARDS: Record<UplandBoard, { who: 'account' | 'username'; whoLabel: strin
     ],
     note: 'Property purchases plus sales on the market, decoded from the chain every 15 min.',
     read: (scope) => async (c, signal) => {
-      const range = scopeRange(scope, Date.now());
-      // One after the other: both are heavy reads sharing the ledger's one slot.
-      const buys = await c.analytics.query(tradeSideSpec(range, 'buyer'), { signal });
-      const sells = await c.analytics.query(tradeSideSpec(range, 'seller'), { signal });
-      return mergeTrades(buys, sells);
+      const board = await loadTrades(scopeRange(scope, Date.now()), (spec) => c.analytics.query(spec, { signal }));
+      return {
+        rows: board.rows,
+        approximate: board.exact
+          ? undefined
+          : `Approximate beyond the top of each side: the ledger ranks buys and sells separately, and accounts below its first ${formatInt(board.depth)} on both sides could still belong here.`,
+      };
     },
   },
 };
@@ -91,7 +92,7 @@ function UplandLeaderboard() {
   const board: UplandBoard = readEnum(params, 'board', UPLAND_BOARDS) ?? 'treasures';
   const scope: Scope = readEnum(params, 'scope', SCOPES) ?? 'week';
   const spec = BOARDS[board];
-  const query = useLedgerQuery<BoardRow[]>(queryKey('/analytics/query#upland-board', { board, scope }), spec.read(scope), { heavy: true, keepPrevious: true });
+  const query = useLedgerQuery<Board>(queryKey('/analytics/query#upland-board', { board, scope }), spec.read(scope), { heavy: true, keepPrevious: true, isEmpty: isEmptyBoard });
 
   return (
     <>

@@ -19,6 +19,10 @@ const activity = (page: Page) => page.locator('section[aria-labelledby="activity
 const sales = (page: Page) => page.locator('section[aria-labelledby="sales-title"]');
 
 test('renders the live strip, chain activity, latest sales and the tools from the ledger', async ({ page }) => {
+  const windows: string[] = [];
+  page.on('request', (r) => {
+    if (r.url().includes('/bff/ledger/analytics/timeseries?')) windows.push(new URL(r.url()).searchParams.get('after') ?? '');
+  });
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1, name: 'Embers' })).toBeVisible();
   // The stub answers each figure with 1,234 (first measure).
@@ -26,8 +30,12 @@ test('renders the live strip, chain activity, latest sales and the tools from th
   // UPX moved over 24 h, from /analytics/overview (144,653,377.72 UPX).
   await expect(live(page).getByText('144.7M')).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: 'LIVE' }).first()).toBeVisible();
-  await expect(activity(page).getByRole('img', { name: /Transactions per day/ })).toBeVisible();
-  await expect(activity(page).getByText(/3,387,506 transactions over 7 days/)).toBeVisible();
+  await expect(activity(page).getByRole('img', { name: /Transactions per UTC day: 3,387,506 transactions over the last 30 UTC days/ })).toBeVisible();
+  // 30 days ending today: after is inclusive, so it starts 29 UTC days back, and the caption agrees.
+  await expect(activity(page).getByText('Transactions per UTC day over the last 30 days, today so far.', { exact: false })).toBeVisible();
+  await expect(activity(page).getByText('3,387,506 transactions over the last 30 UTC days, today so far (the ledger has 7 of those days)')).toBeVisible();
+  const today = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate());
+  expect(windows.at(-1)).toBe(new Date(today - 29 * 86_400_000).toISOString().replace('.000Z', 'Z'));
   await expect(sales(page).getByRole('cell', { name: '2506 SEARSDALE AVE' })).toBeVisible();
   await expect(sales(page).getByRole('button', { name: 'Pause ticker' })).toBeVisible();
   const explore = page.locator('section[aria-labelledby="explore-title"]');

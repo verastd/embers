@@ -18,9 +18,10 @@ import { Suspense } from 'react';
 
 import { SearchFilterField } from '@/components/data/fields';
 import { GroupField } from '@/components/users/parts';
-import { BoardTable } from '@/components/users/BoardTable';
+import { BoardTable, isEmptyBoard } from '@/components/users/BoardTable';
+import type { Board } from '@/components/users/BoardTable';
 import { PROPERTY_BOARD_SORTS, SCOPES, SCOPE_LABELS, propertyBoard, propertyBoardSpec, scopeRange } from '@/lib/analytics';
-import type { BoardRow, PropertyBoardSort, Scope } from '@/lib/analytics';
+import type { PropertyBoardSort, Scope } from '@/lib/analytics';
 import { readEnum, readText } from '@/lib/filters';
 import { formatInt, formatUpx } from '@/lib/format';
 import { useLedgerQuery } from '@/lib/hooks';
@@ -44,13 +45,13 @@ function PropertiesLeaderboard() {
   const by: PropertyBoardSort = readEnum(params, 'by', PROPERTY_BOARD_SORTS) ?? 'bought';
   const city = readText(params, 'city', 64);
 
-  const query = useLedgerQuery<BoardRow[]>(
+  const query = useLedgerQuery<Board>(
     queryKey('/analytics/query#property-board', { scope, by, city }),
     async (c, signal) => {
       const result: AnalyticsResult = await c.analytics.query(propertyBoardSpec(scopeRange(scope, Date.now()), by, city), { signal });
-      return propertyBoard(result, by);
+      return { rows: propertyBoard(result, by) };
     },
-    { heavy: true, keepPrevious: true },
+    { heavy: true, keepPrevious: true, isEmpty: isEmptyBoard },
   );
   const other: PropertyBoardSort = by === 'bought' ? 'volume_upx' : 'bought';
   const fmt = (k: PropertyBoardSort) => (k === 'bought' ? (n: number | null) => formatInt(n) : (n: number | null) => formatUpx(n, { compact: true }));

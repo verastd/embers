@@ -19,7 +19,7 @@
  */
 import { AsyncButton, Block, DataState, DataTable, FactList, PageHeader, Segment, Skeleton, StatTile, StatusBanner, TileRow } from '@embers/ui';
 import type { Column } from '@embers/ui';
-import type { AccountActionPage, AccountDetail, AccountPage, Action, Property, PropertyListParams, Sale, SaleParams } from '@embers/ledger';
+import type { AccountActionPage, AccountDetail, Action, Property, PropertyListParams, Sale, SaleParams } from '@embers/ledger';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useMemo } from 'react';
 import type { ReactNode } from 'react';
@@ -32,7 +32,8 @@ import { useCursorFeed, useLedgerQuery, useOffsetFeed } from '@/lib/hooks';
 import type { OffsetFeedResult, QueryResult } from '@/lib/hooks';
 import { describeError, queryKey } from '@/lib/query-core';
 import { useFilters } from '@/lib/useFilters';
-import { USER_ROUTES, displayName, previousUsernames, readUserParam, resolveUser } from '@/lib/users';
+import { USER_ROUTES, displayName, lookupUser, notFoundMessage, previousUsernames, readUserParam } from '@/lib/users';
+import type { Lookup } from '@/lib/users';
 
 const TABS = ['properties', 'transactions', 'activity', 'market'] as const;
 type Tab = (typeof TABS)[number];
@@ -54,14 +55,16 @@ export default function UserProfilePage() {
 function Profile() {
   const params = useParams<{ username: string }>();
   const name = readUserParam(params?.username);
-  const lookup = useLedgerQuery<AccountPage>(name ? queryKey('/accounts', { username: name, limit: 100 }) : null, (c, signal) =>
-    c.accounts.list({ username: name ?? '', named: true, sort: 'events', order: 'desc', limit: 100 }, { signal }),
+  const lookup = useLedgerQuery<Lookup>(
+    name ? queryKey('/accounts#lookup', { username: name }) : null,
+    (c, signal) => lookupUser(name ?? '', (page) => c.accounts.list({ username: name ?? '', named: true, sort: 'events', order: 'desc', ...page }, { signal })),
+    { isEmpty: () => false },
   );
-  const resolution = name && lookup.data ? resolveUser(name, lookup.data.data) : null;
+  const resolution = name && lookup.data ? lookup.data.resolution : null;
   const account = resolution?.kind === 'account' ? resolution.account : null;
   const detail = useLedgerQuery<AccountDetail>(account ? queryKey(`/accounts/${account}`) : null, (c, signal) => c.accounts.get(account ?? '', undefined, { signal }));
 
-  if (name === null || resolution?.kind === 'none' || detail.view === 'not-found') return <UserNotFound name={name ?? ''} />;
+  if (name === null || resolution?.kind === 'none' || detail.view === 'not-found') return <UserNotFound name={name ?? ''} lookup={lookup.data ?? null} />;
 
   // Until the name resolves, the lookup is what the page is waiting on (or failed on).
   const head: QueryResult<unknown> = account === null ? lookup : detail;
@@ -140,14 +143,14 @@ function CopyAccount({ account }: { account: string }) {
   );
 }
 
-function UserNotFound({ name }: { name: string }) {
+function UserNotFound({ name, lookup }: { name: string; lookup: Lookup | null }) {
   const router = useRouter();
   return (
     <>
       <PageHeader eyebrow="User" title="User not found" />
       <DataState
         state="empty"
-        emptyMessage={name ? `No Upland user named “${name}” is in the ledger.` : 'That is not a username or EOS account.'}
+        emptyMessage={notFoundMessage(name, lookup)}
         emptyAction="Search users"
         onEmptyAction={() => router.push(hrefWith(USER_ROUTES.search, { search: true, q: name || undefined }))}
       />

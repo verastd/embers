@@ -73,3 +73,53 @@ export function previousUsernames(row: NameRow): string[] {
 export function displayName(row: Pick<Account, 'account' | 'username'>): string {
   return row.username.trim() || row.account;
 }
+
+/* --- resolving a name through the ledger ------------------------------------------ */
+
+/**
+ * `/accounts?username=` is a substring match on CURRENT usernames, ranked by
+ * activity, so a short name ("bo") can sit pages deep behind everyone whose
+ * name contains it. The lookup pages until the exact name turns up, the
+ * matches run out, or the cap is hit. No ledger route searches earlier
+ * usernames (`usernames` is returned, never filtered on), so an old name
+ * resolves only when the renamed player's current name happens to contain it.
+ */
+export const LOOKUP_PAGE = 100;
+export const LOOKUP_MAX_PAGES = 10;
+
+export interface Lookup {
+  resolution: Resolution;
+  /** Accounts read while looking. */
+  scanned: number;
+  /** Every account whose username contains the name was read. */
+  complete: boolean;
+}
+
+export type LookupPage = (page: { offset: number; limit: number }) => Promise<{ data: NameRow[]; has_more: boolean }>;
+
+export async function lookupUser(name: string, fetchPage: LookupPage, maxPages: number = LOOKUP_MAX_PAGES): Promise<Lookup> {
+  const n = name.toLowerCase();
+  const rows: NameRow[] = [];
+  let complete = false;
+  for (let page = 0; page < maxPages; page++) {
+    const res = await fetchPage({ offset: page * LOOKUP_PAGE, limit: LOOKUP_PAGE });
+    rows.push(...res.data);
+    const exact = res.data.find((r) => r.username.toLowerCase() === n);
+    if (exact) return { resolution: { kind: 'account', account: exact.account, via: 'username' }, scanned: rows.length, complete: !res.has_more };
+    if (!res.has_more || res.data.length === 0) {
+      complete = true;
+      break;
+    }
+  }
+  return { resolution: resolveUser(name, rows), scanned: rows.length, complete };
+}
+
+/** What the not-found page says, honest about what was and could not be searched. */
+export function notFoundMessage(name: string, lookup: Pick<Lookup, 'scanned' | 'complete'> | null): string {
+  if (!name) return 'That is not a username or EOS account.';
+  const earlier = 'Earlier usernames can’t be searched yet, so a player who has renamed is not found by an old name.';
+  if (lookup && !lookup.complete) {
+    return `No exact match for “${name}” among the first ${new Intl.NumberFormat('en-US').format(lookup.scanned)} usernames that contain it. Try a longer name. ${earlier}`;
+  }
+  return `No Upland player currently uses the username “${name}”. ${earlier}`;
+}

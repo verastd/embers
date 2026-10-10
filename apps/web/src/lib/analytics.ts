@@ -60,6 +60,25 @@ export function scopeRange(scope: Scope, now: number): Range {
   return trailingRange(scope === 'week' ? 7 * 24 : 30 * 24, now);
 }
 
+/* --- Home (F-190) chain activity --------------------------------------------- */
+
+/**
+ * The first UTC day of a `days`-day window that ends with today. The
+ * ledger's `after` is inclusive, so the start is `days - 1` days back:
+ * 30 days means today and the 29 before it.
+ */
+export function dailyWindowStart(days: number, now: number): string {
+  const d = new Date(Math.floor(now / DAY) * DAY - (days - 1) * DAY);
+  return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+/** The line under the activity chart; says so when the ledger has fewer days than the window. */
+export function activityCaption(total: number, days: number, daysWithData: number): string {
+  const sum = new Intl.NumberFormat('en-US').format(total);
+  const base = `${sum} transactions over the last ${days} UTC days, today so far`;
+  return daysWithData < days ? `${base} (the ledger has ${daysWithData} of those days)` : base;
+}
+
 /* --- Home (F-190) live strip ------------------------------------------------ */
 
 /** Distinct accounts that signed an action in the range (the chain's DAU over 24 h). */
@@ -180,43 +199,89 @@ export function proceedsBoardSpec(range: Range): QuerySpec {
 }
 
 /**
- * Trades are counted from both sides of each sale, which the ledger groups
- * one side at a time. Each side is read this deep so the merged top 100
- * cannot miss an account that is mid-table on both sides.
+ * Trades are counted from both sides of each sale. The query compiler groups
+ * one column at a time and the `sales` source has no union of buyer and
+ * seller, so each side is read as its own ranked list and merged.
+ *
+ * A merged top 100 from two truncated lists can be wrong: an account just
+ * below the cut on both sides (99 buys, 99 sells) beats one at the top of a
+ * single side (100 buys). So the merge tracks bounds. When a list came back
+ * full, an account missing from it can have up to that list's smallest
+ * value on that side. The ranking is exact only when every shown row is
+ * fully known and nothing unseen or half-seen could reach the 100th total;
+ * otherwise the lists are read deeper, up to the ledger's row limit.
  */
-export const TRADE_SIDE_DEPTH = 1000;
+export const TRADE_DEPTHS = [1000, 4000, 10_000] as const;
 
-export function tradeSideSpec(range: Range, side: 'buyer' | 'seller'): QuerySpec {
+export function tradeSideSpec(range: Range, side: 'buyer' | 'seller', limit: number = TRADE_DEPTHS[0]): QuerySpec {
   return {
     source: 'sales',
     range,
     dimensions: [{ field: side }],
     measures: [{ fn: 'count', alias: 'trades' }],
     orderBy: [{ measure: 'trades', dir: 'desc' }],
-    limit: TRADE_SIDE_DEPTH,
+    limit,
   };
 }
 
-/** Buys + sells per account, ranked; `extra` is buys, `extra2` sells. */
-export function mergeTrades(buys: AnalyticsResult, sells: AnalyticsResult): BoardRow[] {
-  const totals = new Map<string, { buys: number; sells: number }>();
-  for (const r of resultRecords(buys)) {
-    const who = strCell(r, 'buyer');
-    if (who.trim() === '') continue;
-    totals.set(who, { buys: numCell(r, 'trades') ?? 0, sells: 0 });
+export interface TradesBoard {
+  rows: BoardRow[];
+  /** True when no account outside what was read could change the top 100. */
+  exact: boolean;
+  /** Rows read per side. */
+  depth: number;
+}
+
+function sideCounts(r: AnalyticsResult, key: string): { counts: Map<string, number>; cap: number } {
+  const counts = new Map<string, number>();
+  let min = Number.POSITIVE_INFINITY;
+  for (const rec of resultRecords(r)) {
+    const n = numCell(rec, 'trades') ?? 0;
+    min = Math.min(min, n);
+    const who = strCell(rec, key);
+    if (who.trim() !== '') counts.set(who, n);
   }
-  for (const r of resultRecords(sells)) {
-    const who = strCell(r, 'seller');
-    if (who.trim() === '') continue;
-    const t = totals.get(who) ?? { buys: 0, sells: 0 };
-    t.sells = numCell(r, 'trades') ?? 0;
-    totals.set(who, t);
+  return { counts, cap: Number.isFinite(min) ? min : 0 };
+}
+
+/** Buys + sells per account, ranked, with whether the ranking is provably exact at this depth. */
+export function rankTrades(buys: AnalyticsResult, sells: AnalyticsResult, depth: number): TradesBoard {
+  const b = sideCounts(buys, 'buyer');
+  const s = sideCounts(sells, 'seller');
+  // A list shorter than the depth is complete: missing from it means none on that side.
+  const bCap = buys.rows.length >= depth ? b.cap : 0;
+  const sCap = sells.rows.length >= depth ? s.cap : 0;
+  const all = [...new Set([...b.counts.keys(), ...s.counts.keys()])].map((who) => {
+    const buy = b.counts.get(who);
+    const sell = s.counts.get(who);
+    return { who, buys: buy ?? 0, sells: sell ?? 0, lower: (buy ?? 0) + (sell ?? 0), upper: (buy ?? bCap) + (sell ?? sCap) };
+  });
+  all.sort((x, y) => y.lower - x.lower || (x.who < y.who ? -1 : x.who > y.who ? 1 : 0));
+  const top = all.slice(0, LEADERBOARD_SIZE);
+  const threshold = top.length === LEADERBOARD_SIZE ? (top[LEADERBOARD_SIZE - 1]?.lower ?? 0) : 0;
+  const unseen = bCap + sCap;
+  const exact =
+    top.every((r) => r.lower === r.upper) &&
+    all.slice(LEADERBOARD_SIZE).every((r) => r.lower === r.upper || r.upper < threshold) &&
+    (unseen === 0 || unseen < threshold);
+  return {
+    rows: top.map((r, i) => ({ rank: i + 1, who: r.who, value: r.lower, extra: r.buys, extra2: r.sells })),
+    exact,
+    depth,
+  };
+}
+
+/** Reads both sides, deeper each round, until the merged top 100 is exact or the ledger's limit is reached. */
+export async function loadTrades(range: Range, query: (spec: QuerySpec) => Promise<AnalyticsResult>): Promise<TradesBoard> {
+  let board: TradesBoard = { rows: [], exact: false, depth: 0 };
+  for (const depth of TRADE_DEPTHS) {
+    // One after the other: both are heavy reads sharing the ledger's one slot.
+    const buys = await query(tradeSideSpec(range, 'buyer', depth));
+    const sells = await query(tradeSideSpec(range, 'seller', depth));
+    board = rankTrades(buys, sells, depth);
+    if (board.exact) return board;
   }
-  return [...totals.entries()]
-    .map(([who, t]) => ({ who, value: t.buys + t.sells, extra: t.buys, extra2: t.sells }))
-    .sort((a, b) => b.value - a.value || (a.who < b.who ? -1 : a.who > b.who ? 1 : 0))
-    .slice(0, LEADERBOARD_SIZE)
-    .map((r, i) => ({ rank: i + 1, ...r }));
+  return board;
 }
 
 /* Account → username, for boards that rank chain accounts. */
