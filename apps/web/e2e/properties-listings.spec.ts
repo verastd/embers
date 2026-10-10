@@ -61,7 +61,8 @@ test('filters apply server side and the URL reproduces them', async ({ page }) =
 test('Slow 3G: a loading indicator appears within 100 ms of Apply', async ({ page }) => {
   await page.goto('/properties/listings');
   await expect(results(page).getByText('150 SW 21ST RD').first()).toBeVisible(FIRST);
-  await page.getByRole('radio', { name: 'UPX', exact: true }).click();
+  // USD: the stub answers `book=` honestly, and every captured listing is a USD ask.
+  await page.getByRole('radio', { name: 'USD', exact: true }).click();
   await slow3g(page);
   await page.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(page.locator('[aria-busy="true"]').first()).toBeVisible({ timeout: 100 });
