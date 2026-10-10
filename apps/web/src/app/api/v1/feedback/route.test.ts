@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 
 import { POST } from './route';
 
-/** POST /api/v1/feedback: origin, media type, size, validation, not-configured, filed. */
+/** POST /api/v1/feedback: origin, media type, size, validation, not-configured, Turnstile, filed. */
 const ORIGIN = 'https://embers.example';
 
 function req(body: unknown, headers: Record<string, string> = {}): NextRequest {
@@ -15,13 +15,31 @@ function req(body: unknown, headers: Record<string, string> = {}): NextRequest {
   return Object.assign(r, { nextUrl: new URL(r.url) }) as unknown as NextRequest;
 }
 
-const good = { nickname: 'ann', type: 'Bug', comment: 'Search breaks on Enter' };
+const good = { nickname: 'ann', type: 'Bug', comment: 'Search breaks on Enter', turnstile_token: 'human' };
+
+/** Cloudflare's siteverify (passes only the token `human`) and GitHub's issues API (answers `github`). */
+function upstreams(github: () => Response) {
+  return vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+    if (String(url).includes('challenges.cloudflare.com')) {
+      const token = (init?.body as URLSearchParams).get('response');
+      return new Response(JSON.stringify({ success: token === 'human' }), { status: 200 });
+    }
+    return github();
+  });
+}
+
+function configure(): void {
+  vi.stubEnv('EMBERS_FEEDBACK_GITHUB_TOKEN', 'tok');
+  vi.stubEnv('EMBERS_FEEDBACK_REPO', 'verastd/embers-feedback');
+  vi.stubEnv('EMBERS_TURNSTILE_SECRET', 'ts');
+}
 
 beforeEach(() => {
   vi.stubEnv('NODE_ENV', 'production');
   vi.stubEnv('EMBERS_PUBLIC_ORIGIN', ORIGIN);
   vi.stubEnv('EMBERS_FEEDBACK_GITHUB_TOKEN', '');
   vi.stubEnv('EMBERS_FEEDBACK_REPO', '');
+  vi.stubEnv('EMBERS_TURNSTILE_SECRET', '');
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -54,18 +72,48 @@ describe('POST /api/v1/feedback', () => {
     expect((await json(r)).error?.code).toBe('feedback_not_configured');
     expect(fetcher).not.toHaveBeenCalled();
   });
-  it('files the issue and returns its reference', async () => {
-    vi.stubEnv('EMBERS_FEEDBACK_GITHUB_TOKEN', 'tok');
-    vi.stubEnv('EMBERS_FEEDBACK_REPO', 'verastd/embers-feedback');
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ number: 7 }), { status: 201 })));
+  it('files the issue and returns its reference once Turnstile passes', async () => {
+    configure();
+    const fetcher = upstreams(() => new Response(JSON.stringify({ number: 7 }), { status: 201 }));
+    vi.stubGlobal('fetch', fetcher);
     const r = await POST(req(good));
     expect(r.status).toBe(201);
     expect((await json(r)).data).toEqual({ reference: '#7' });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it('files nothing for a script that sets the Origin header but has no Turnstile token', async () => {
+    configure();
+    const fetcher = upstreams(() => new Response(JSON.stringify({ number: 7 }), { status: 201 }));
+    vi.stubGlobal('fetch', fetcher);
+    const r = await POST(req({ nickname: good.nickname, type: good.type, comment: good.comment }));
+    expect(r.status).toBe(400);
+    expect((await json(r)).error?.code).toBe('turnstile_required');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('files nothing when Cloudflare rejects the token', async () => {
+    configure();
+    const fetcher = upstreams(() => new Response(JSON.stringify({ number: 7 }), { status: 201 }));
+    vi.stubGlobal('fetch', fetcher);
+    const r = await POST(req({ ...good, turnstile_token: 'bot' }));
+    expect(r.status).toBe(400);
+    expect((await json(r)).error?.code).toBe('turnstile_failed');
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it('answers a retryable 503 when Cloudflare cannot be reached, and files nothing', async () => {
+    configure();
+    const fetcher = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).includes('challenges.cloudflare.com')) throw new Error('down');
+      return new Response(JSON.stringify({ number: 7 }), { status: 201 });
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const r = await POST(req(good));
+    expect(r.status).toBe(503);
+    expect((await json(r)).error).toMatchObject({ code: 'turnstile_unavailable', retryable: true });
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
   it('passes on an inbox failure', async () => {
-    vi.stubEnv('EMBERS_FEEDBACK_GITHUB_TOKEN', 'tok');
-    vi.stubEnv('EMBERS_FEEDBACK_REPO', 'verastd/embers-feedback');
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 401 })));
+    configure();
+    vi.stubGlobal('fetch', upstreams(() => new Response('{}', { status: 401 })));
     const r = await POST(req(good));
     expect(r.status).toBe(502);
     expect((await json(r)).error?.code).toBe('feedback_rejected');

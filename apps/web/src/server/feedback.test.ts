@@ -3,14 +3,17 @@ import { describe, expect, it, vi } from 'vitest';
 import { feedbackConfig, issueBody, issueTitle, plainNickname, submitFeedback } from './feedback';
 
 const f = { nickname: '@octocat', type: 'Bug' as const, comment: 'The search ```breaks``` when\nI press Enter', page: '/properties/search' };
-const config = { token: 't0k', owner: 'verastd', repo: 'embers-feedback' };
+const config = { token: 't0k', owner: 'verastd', repo: 'embers-feedback', turnstileSecret: 'ts' };
 
 describe('feedbackConfig', () => {
-  it('needs a token and an owner/name repo', () => {
+  it('needs a token, an owner/name repo and a Turnstile secret', () => {
+    const ok = { EMBERS_FEEDBACK_GITHUB_TOKEN: ' x ', EMBERS_FEEDBACK_REPO: 'verastd/embers-feedback', EMBERS_TURNSTILE_SECRET: ' s ' };
     expect(feedbackConfig({})).toBeNull();
     expect(feedbackConfig({ EMBERS_FEEDBACK_GITHUB_TOKEN: 'x' })).toBeNull();
-    expect(feedbackConfig({ EMBERS_FEEDBACK_GITHUB_TOKEN: 'x', EMBERS_FEEDBACK_REPO: 'not a repo' })).toBeNull();
-    expect(feedbackConfig({ EMBERS_FEEDBACK_GITHUB_TOKEN: ' x ', EMBERS_FEEDBACK_REPO: 'verastd/embers-feedback' })).toEqual({ token: 'x', owner: 'verastd', repo: 'embers-feedback' });
+    expect(feedbackConfig({ ...ok, EMBERS_FEEDBACK_REPO: 'not a repo' })).toBeNull();
+    // No Turnstile, no inbox: the endpoint must never file unchecked requests.
+    expect(feedbackConfig({ ...ok, EMBERS_TURNSTILE_SECRET: undefined })).toBeNull();
+    expect(feedbackConfig(ok)).toEqual({ token: 'x', owner: 'verastd', repo: 'embers-feedback', turnstileSecret: 's' });
   });
 });
 

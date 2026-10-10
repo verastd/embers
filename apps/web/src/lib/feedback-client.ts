@@ -17,10 +17,10 @@ export class FeedbackSendError extends Error {
   }
 }
 
-export async function sendFeedback(input: FeedbackInput, signal?: AbortSignal): Promise<{ reference: string; requestId: string | null }> {
+export async function sendFeedback(input: FeedbackInput, signal?: AbortSignal, turnstileToken?: string | null): Promise<{ reference: string; requestId: string | null }> {
   let res: Response;
   try {
-    res = await fetch('/api/v1/feedback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input), signal });
+    res = await fetch('/api/v1/feedback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(turnstileToken ? { ...input, turnstile_token: turnstileToken } : input), signal });
   } catch (e) {
     if (signal?.aborted) throw new FeedbackSendError('Timed out', 'timeout', null);
     throw new FeedbackSendError(e instanceof Error && e.message ? `Could not reach Embers: ${e.message}` : 'Could not reach Embers', 'network_error', null);
