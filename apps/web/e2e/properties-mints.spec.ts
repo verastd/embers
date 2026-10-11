@@ -108,7 +108,7 @@ test('a failed poll moves the indicator to reconnecting and keeps the mints', as
   await expect(latest(page).getByText('2506 SEARSDALE AVE')).toBeVisible(FIRST);
   await expect(page.getByText('LIVE', { exact: true })).toBeVisible();
   fail = true;
-  await page.clock.fastForward('01:05');
+  await page.clock.fastForward('00:16');
   await expect(page.getByText(/Reconnecting \(attempt 1\)/)).toBeVisible();
   await expect(latest(page).getByText('2506 SEARSDALE AVE')).toBeVisible();
   // Three minutes on, the rows are past their budget: the stale banner offers Refresh.

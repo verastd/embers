@@ -2,8 +2,8 @@
 
 /**
  * Live property listings (F-404) over the ledger's `/listings` (the order
- * book: decoded `listing_created` events joined to the property, refreshed
- * every 15 min). Polled every 60 s (PRD 6.3 listings-poll) with the
+ * book: decoded `listing_created` events joined to the property; the ledger
+ * decodes new chain actions every 2 s). Polled every 5 s with the
  * LiveIndicator; new listings arrive at the top with the 2 s highlight and
  * an "N new" pill when the table's top is scrolled away.
  *
@@ -30,7 +30,10 @@ import { useLiveOffsetFeed, useLivePoll, useNewRows } from '@/lib/useLive';
 
 const KEYS = ['status', 'city', 'neighborhood', 'book', 'min_ask', 'max_ask', 'min_markup', 'max_markup', 'sort', 'order'] as const;
 const PAGE = 50;
-const POLL_MS = 60_000;
+// Listings are the most time-critical data on the site: poll fast. The stale
+// banner waits 30 s so one slow or failed poll does not flash it.
+const POLL_MS = 5_000;
+const STALE_MS = 30_000;
 const SORTS = ['timestamp', 'ask_upx', 'ask_fiat', 'ask_to_mint'] as const;
 type Sort = (typeof SORTS)[number];
 type Book = 'any' | 'upx' | 'fiat';
@@ -110,7 +113,7 @@ function LiveListings() {
   }, [params]);
   const key = queryKey('/listings', request);
   const feed = useLiveOffsetFeed<Listing>(key, (page, c, signal) => c.listings.list({ ...request, ...page }, { signal }), PAGE);
-  const live = useLivePoll({ feedKey: key, intervalMs: POLL_MS, poll: feed.poll, hasData: feed.data !== undefined, firstError: feed.error, retryFirst: feed.refetch });
+  const live = useLivePoll({ feedKey: key, intervalMs: POLL_MS, staleBudgetMs: STALE_MS, poll: feed.poll, hasData: feed.data !== undefined, firstError: feed.error, retryFirst: feed.refetch });
 
   const anchor = useRef<HTMLDivElement>(null);
   const rowKey = useCallback(listingKey, []);
@@ -127,7 +130,7 @@ function LiveListings() {
     <>
       <PageHeader
         title="Live listings"
-        lede="Properties put up for sale on Upland, newest first. Polled every minute; the ledger decodes new listings every 15 minutes."
+        lede="Properties put up for sale on Upland, newest first. Updated every 5 seconds, seconds behind the chain."
         aside={<LiveControls live={live} newCount={fresh.newCount} onJumpToNew={fresh.jumpToNew} />}
       />
 

@@ -2,13 +2,13 @@
 
 /**
  * Live property minting (F-405). Mints are the ledger's decoded
- * `property_minted` events (refreshed every 15 min), read with
+ * `property_minted` events (decoded every 2 s), read with
  * `POST /analytics/query` (see `lib/mints.ts` for the specs): 24 h KPIs,
  * the top 10 minters and the latest 50 mints. Addresses and usernames are
  * looked up by id in the property and account dimensions; when a lookup
  * fails, the rows stay (by id) under a partial banner with Retry.
  *
- * Polled every 60 s with the LiveIndicator. Every query here takes the
+ * Polled every 15 s with the LiveIndicator. Every query here takes the
  * ledger's shared heavy-query slot, so they run one after another.
  *
  * Not shown, because the ledger has no data for it: the minter's level.
@@ -27,7 +27,8 @@ import type { Minter, MintRow, PlaceInfo } from '@/lib/mints';
 import { queryKey } from '@/lib/query-core';
 import { useLiveLedgerQuery, useLivePoll, useNewRows } from '@/lib/useLive';
 
-const POLL_MS = 60_000;
+// Every query here takes the heavy-query slot, so not as fast as listings.
+const POLL_MS = 15_000;
 const LATEST = 50;
 const linkStyle = { color: 'var(--text-link)', textDecoration: 'none' } as const;
 
@@ -129,7 +130,7 @@ export default function LiveMintingPage() {
     <>
       <PageHeader
         title="Live minting"
-        lede="Properties minted on Upland, from the chain. Polled every minute; the ledger decodes new mints every 15 minutes."
+        lede="Properties minted on Upland, from the chain. Updated every 15 seconds, seconds behind the chain."
         aside={<LiveControls live={live} newCount={fresh.newCount} onJumpToNew={fresh.jumpToNew} />}
       />
 
