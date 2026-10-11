@@ -114,7 +114,7 @@ test('a failed poll moves the indicator to reconnecting and keeps the rows; reco
   await expect(page.getByText('LIVE', { exact: true })).toBeVisible();
 
   fail = true;
-  await page.clock.fastForward('01:05');
+  await page.clock.fastForward('00:06');
   await expect(page.getByText(/Reconnecting \(attempt 1\)/)).toBeVisible();
   await expect(results(page).getByText('150 SW 21ST RD').first()).toBeVisible(FIRST);
 
@@ -141,8 +141,8 @@ test('offline, then a new filter: the new feed goes live again', async ({ page }
   await page.goto('/properties/listings');
   await expect(results(page).getByText('150 SW 21ST RD').first()).toBeVisible(FIRST);
   fail = true;
-  // The poll at 60 s, then retries after 5, 10, 20 and 30 s: five failures in a row.
-  const steps = ['01:01', '00:06', '00:11', '00:21'];
+  // The poll at 5 s, then retries after 5, 10, 20 and 30 s: five failures in a row.
+  const steps = ['00:06', '00:06', '00:11', '00:21'];
   for (const [i, step] of steps.entries()) {
     await page.clock.fastForward(step);
     await expect(page.getByText(`Reconnecting (attempt ${i + 1})`)).toBeVisible();
